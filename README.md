@@ -5,7 +5,7 @@ Local, context-first explanations for selected text. The Chrome extension extrac
 ## Architecture
 
 ```txt
-Chrome extension → local Vite backend → Ollama → qwen2.5-coder:3b
+Chrome extension → local Vite backend → Ollama → mode-specific local model
 ```
 
 ## Install Ollama and the model
@@ -13,6 +13,7 @@ Chrome extension → local Vite backend → Ollama → qwen2.5-coder:3b
 ```bash
 brew install ollama
 ollama pull qwen2.5-coder:3b
+ollama pull qwen3:4b-thinking
 ollama serve
 ```
 
@@ -26,6 +27,8 @@ cp .env.example .env
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=qwen2.5-coder:3b
 OLLAMA_TIMEOUT_SECONDS=20
+OLLAMA_FIRST_PRINCIPLES_MODEL=qwen3:4b-thinking
+OLLAMA_FIRST_PRINCIPLES_TIMEOUT_SECONDS=60
 ```
 
 ## Run locally
@@ -78,6 +81,8 @@ curl -X POST http://127.0.0.1:5173/explain \
 Open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select the [`extension`](./extension) directory. Reload the webpage after loading or updating the extension.
 
 Quick mode sends the selected text, nearby blocks, nearest section heading, page title, and URL. **Explain deeper** sends cleaned main-page content capped at 20,000 characters.
+
+Normal explanations use `qwen2.5-coder:3b`. **Explain from first principles** reuses the current context, applies the first-principles prompt, and uses `qwen3:4b-thinking`.
 
 ## Tests
 

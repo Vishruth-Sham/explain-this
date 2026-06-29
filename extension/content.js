@@ -109,10 +109,10 @@
     surface.querySelector(".pill").addEventListener("click", () => explain("quick"));
   }
 
-  function explain(mode) {
+  function explain(contextMode, explanationMode = "normal") {
     if (!selected) return;
     const version = ++requestVersion;
-    renderPopover({ loadingMode: mode });
+    renderPopover({ loadingMode: contextMode, explanationMode });
     const payload = {
       selected_text: selected.selected_text,
       before_text: selected.before_text,
@@ -121,9 +121,10 @@
       section_heading: selected.section_heading,
       page_title: selected.page_title,
       page_url: selected.page_url,
-      context_mode: mode,
+      context_mode: contextMode,
+      explanation_mode: explanationMode,
     };
-    if (mode === "deep") payload.main_content = extractMainContent();
+    if (contextMode === "deep") payload.main_content = extractMainContent();
 
     chrome.runtime.sendMessage({ type: "EXPLAIN_SELECTION", payload }, (response) => {
       if (!selected || version !== requestVersion) return;
@@ -131,30 +132,55 @@
       if (!response?.ok) return renderPopover({ error: response?.error || "Local model inference failed." });
 
       const insufficient = response.insufficient_context || response.explanation.trim().toLowerCase().startsWith(INSUFFICIENT.toLowerCase());
-      if (insufficient && mode === "deep") {
+      if (insufficient && contextMode === "deep") {
         renderPopover({ explanation: `${INSUFFICIENT} Try selecting a larger section.` });
         return;
       }
+      const actions = [];
+      if (insufficient) {
+        actions.push({ label: "Try with more page context", contextMode: "deep", explanationMode });
+      } else {
+        if (contextMode === "quick") {
+          actions.push({ label: "Explain deeper", contextMode: "deep", explanationMode });
+        }
+        if (explanationMode === "normal") {
+          actions.push({
+            label: "Explain from first principles",
+            contextMode,
+            explanationMode: "first_principles",
+          });
+        }
+      }
       renderPopover({
         explanation: response.explanation,
-        action: insufficient
-          ? { label: "Try with more page context", mode: "deep" }
-          : mode === "quick" ? { label: "Explain deeper", mode: "deep" } : null,
+        actions,
       });
     });
   }
 
-  function renderPopover({ loadingMode = "", explanation = "", error = "", action = null }) {
+  function renderPopover({
+    loadingMode = "",
+    explanationMode = "normal",
+    explanation = "",
+    error = "",
+    actions = [],
+  }) {
     const width = Math.min(390, innerWidth - 32);
     const left = clamp(selected.rect.left + selected.rect.width / 2 - width / 2, 16, innerWidth - width - 16);
     const top = selected.rect.top > 300 ? Math.max(16, selected.rect.top - 280) : selected.rect.bottom + 18;
     let body;
     if (loadingMode) {
-      const loadingText = loadingMode === "deep" ? "Explaining with more page context..." : "Explaining locally...";
+      const loadingText = explanationMode === "first_principles"
+        ? "Breaking it down from first principles..."
+        : loadingMode === "deep" ? "Explaining with more page context..." : "Explaining locally...";
       body = `<p class="status">${loadingText}</p><div class="loading" aria-label="${loadingText}"><span></span><span></span><span></span></div>`;
     } else {
       body = `<p class="${error ? "error" : ""}">${escapeHtml(error || explanation)}</p>`;
-      if (action) body += `<button class="secondary" type="button">${escapeHtml(action.label)}</button>`;
+      if (actions.length) {
+        body += `<div class="actions">${actions.map((action, index) =>
+          `<button class="secondary" data-action-index="${index}" type="button">${escapeHtml(action.label)}</button>`
+        ).join("")}</div>`;
+      }
     }
 
     surface.innerHTML = `<section class="popover" style="left:${left}px;top:${top}px;width:${width}px" aria-live="polite">
@@ -162,7 +188,11 @@
       <strong>Explanation</strong><button class="close" type="button" aria-label="Close explanation"><img src="${chrome.runtime.getURL("assets/x.svg")}" alt=""></button></header>
       ${body}</section>`;
     surface.querySelector(".close").addEventListener("click", close);
-    if (action) surface.querySelector(".secondary").addEventListener("click", () => explain(action.mode));
+    actions.forEach((action, index) => {
+      surface.querySelector(`[data-action-index="${index}"]`).addEventListener("click", () => {
+        explain(action.contextMode, action.explanationMode);
+      });
+    });
   }
 
   function close() {
@@ -186,7 +216,7 @@
       .orb{display:grid;flex:0 0 auto;width:32px;height:32px;place-items:center;border-radius:50%;background:#083568}.orb img{width:19px;height:19px}.orb.small{width:30px;height:30px}.orb.small img{width:17px;height:17px}
       .popover{position:fixed;max-height:70vh;overflow:auto;padding:17px 19px 19px;border:1px solid #555552;border-radius:18px;color:#ecebe7;background:#2c2c2a;box-shadow:0 18px 46px rgba(0,0,0,.34);pointer-events:auto;animation:popover-in 180ms ease-out}.popover header{display:flex;align-items:center;gap:10px;color:#fff;font-size:16px}.popover strong{font-weight:700}
       .close{display:grid;width:30px;height:30px;margin-left:auto;place-items:center;border:0;border-radius:8px;background:transparent;cursor:pointer}.close:hover,.close:focus-visible{background:#3a3a37;outline:none}.close img{width:17px;height:17px}.popover p{margin:14px 2px 0;color:#d3d1cb;font-size:15px;font-weight:400;line-height:1.58;letter-spacing:normal;white-space:pre-wrap}.popover p.error{color:#ffb8b1}.popover p.status{color:#aaa8a3;font-size:13px}
-      .secondary{margin-top:14px;padding:7px 10px;border:1px solid #555552;border-radius:9px;color:#9fc7ff;background:#252523;cursor:pointer;font-size:13px;font-weight:650}.secondary:hover,.secondary:focus-visible{border-color:#71716c;background:#343432;outline:none}
+      .actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.secondary{padding:7px 10px;border:1px solid #555552;border-radius:9px;color:#9fc7ff;background:#252523;cursor:pointer;font-size:13px;font-weight:650}.secondary:hover,.secondary:focus-visible{border-color:#71716c;background:#343432;outline:none}
       .loading{display:grid;gap:8px;margin-top:12px}.loading span{height:8px;border-radius:999px;background:#42423f;animation:pulse 900ms ease-in-out infinite alternate}.loading span:nth-child(2){width:84%;animation-delay:100ms}.loading span:nth-child(3){width:62%;animation-delay:200ms}
       @keyframes pill-in{from{opacity:0;transform:translate(-50%,5px) scale(.97)}to{opacity:1;transform:translate(-50%,0) scale(1)}}@keyframes popover-in{from{opacity:0;transform:translateY(5px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes pulse{to{background:#555550}}@media(prefers-reduced-motion:reduce){.pill,.popover,.loading span{animation:none}}
     `;

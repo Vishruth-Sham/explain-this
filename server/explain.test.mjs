@@ -5,6 +5,7 @@ import {
   buildMessages,
   explainSelection,
   getHealthConfig,
+  resolveFirstPrinciplesTimeoutMs,
   resolveTimeoutMs,
   toErrorResponse,
   validateExplainInput,
@@ -28,6 +29,7 @@ test("validates, truncates, and supports legacy fields", () => {
   assert.equal(input.before_text.length, 4_000);
   assert.equal(input.page_title, "Legacy title");
   assert.equal(input.context_mode, "quick");
+  assert.equal(input.explanation_mode, "normal");
 });
 
 test("builds context-first quick and deep prompts", () => {
@@ -37,6 +39,7 @@ test("builds context-first quick and deep prompts", () => {
     after_text: "Controllers recreate them.",
   }));
   assert.match(quick[0].content, /source of truth/);
+  assert.doesNotMatch(quick[0].content, /primitive concepts/);
   assert.match(quick[1].content, /Pods are workload units/);
 
   const deep = buildMessages(validateExplainInput({
@@ -46,6 +49,18 @@ test("builds context-first quick and deep prompts", () => {
     context_mode: "deep",
   }));
   assert.match(deep[1].content, /Full article/);
+});
+
+test("builds the first-principles prompt only for that mode", () => {
+  const input = validateExplainInput({
+    selected_text: "A controller reconciles state.",
+    before_text: "Controllers watch resources.",
+    explanation_mode: "first_principles",
+  });
+  const messages = buildMessages(input);
+  assert.equal(input.explanation_mode, "first_principles");
+  assert.match(messages[0].content, /What problem this idea is solving/);
+  assert.match(messages[0].content, /primitive concepts/);
 });
 
 test("calls local Ollama with qwen2.5-coder:3b", async () => {
@@ -65,8 +80,28 @@ test("calls local Ollama with qwen2.5-coder:3b", async () => {
   assert.equal(request.body.model, "qwen2.5-coder:3b");
   assert.equal(request.body.stream, false);
   assert.match(result.explanation, /stable discovery/);
-  assert.match(logs[0], /model=qwen2\.5-coder:3b mode=quick selected_len=/);
+  assert.match(logs[0], /model=qwen2\.5-coder:3b mode=quick explanation_mode=normal selected_len=/);
   assert.match(logs[0], /latency_ms=\d+ status=success/);
+});
+
+test("routes first-principles explanations to qwen3:4b-thinking", async () => {
+  let request;
+  const result = await explainSelection(
+    {
+      selected_text: "A Service gives Pods a stable address.",
+      explanation_mode: "first_principles",
+    },
+    {
+      fetchImpl: async (url, options) => {
+        request = { url, body: JSON.parse(options.body) };
+        return new Response(JSON.stringify({ message: { content: "It starts with changing Pod identities." } }));
+      },
+      logger: () => {},
+    },
+  );
+  assert.equal(request.body.model, "qwen3:4b-thinking");
+  assert.match(request.body.messages[0].content, /step by step/);
+  assert.equal(result.explanation_mode, "first_principles");
 });
 
 test("detects insufficient context", async () => {
@@ -120,10 +155,12 @@ test("normalizes Ollama connection, missing model, and timeout errors", async ()
 test("exposes local defaults", () => {
   assert.equal(resolveTimeoutMs(undefined), 20_000);
   assert.equal(resolveTimeoutMs("45"), 45_000);
+  assert.equal(resolveFirstPrinciplesTimeoutMs(undefined), 60_000);
   assert.deepEqual(getHealthConfig(), {
     status: "ok",
     ollama_base_url: "http://localhost:11434",
     model: "qwen2.5-coder:3b",
+    first_principles_model: "qwen3:4b-thinking",
   });
 });
 

@@ -19,6 +19,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         explanation: result.explanation,
         insufficient_context: result.insufficient_context,
         context_mode: result.context_mode,
+        explanation_mode: result.explanation_mode,
       });
     })
     .catch((error) => sendResponse({ ok: false, error: error.message }));

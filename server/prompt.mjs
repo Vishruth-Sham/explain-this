@@ -22,7 +22,7 @@ export function parsePromptBlocks(source) {
     blocks[match[1]] = content.join("\n").trim();
   }
 
-  for (const key of ["system", "quick", "deep"]) {
+  for (const key of ["system", "quick", "deep", "first_principles"]) {
     if (!blocks[key]) throw new Error(`Prompt YAML must contain a ${key} block.`);
   }
   return blocks;

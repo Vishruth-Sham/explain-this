@@ -61,7 +61,11 @@ export function explainApiPlugin({ env = process.env } = {}) {
       const result = await explainSelection(payload, {
         baseUrl: env.OLLAMA_BASE_URL,
         model: env.OLLAMA_MODEL,
+        firstPrinciplesModel: env.OLLAMA_FIRST_PRINCIPLES_MODEL,
         timeoutMs: env.OLLAMA_TIMEOUT_SECONDS ? Number(env.OLLAMA_TIMEOUT_SECONDS) * 1_000 : undefined,
+        firstPrinciplesTimeoutMs: env.OLLAMA_FIRST_PRINCIPLES_TIMEOUT_SECONDS
+          ? Number(env.OLLAMA_FIRST_PRINCIPLES_TIMEOUT_SECONDS) * 1_000
+          : undefined,
       });
       sendJson(response, 200, result);
     } catch (error) {
@@ -75,7 +79,11 @@ export function explainApiPlugin({ env = process.env } = {}) {
     configureServer(server) {
       server.middlewares.use("/health", (request, response) => {
         if (request.method !== "GET") return sendJson(response, 405, { error: "Use GET.", code: "method_not_allowed" });
-        sendJson(response, 200, getHealthConfig({ baseUrl: env.OLLAMA_BASE_URL, model: env.OLLAMA_MODEL }));
+        sendJson(response, 200, getHealthConfig({
+          baseUrl: env.OLLAMA_BASE_URL,
+          model: env.OLLAMA_MODEL,
+          firstPrinciplesModel: env.OLLAMA_FIRST_PRINCIPLES_MODEL,
+        }));
       });
       server.middlewares.use("/api/explain", handleExplain);
       server.middlewares.use("/explain", handleExplain);

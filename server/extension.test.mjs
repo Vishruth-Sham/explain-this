@@ -15,6 +15,7 @@ test("extension sends the full quick context contract", () => {
     "page_title",
     "page_url",
     "context_mode",
+    "explanation_mode",
   ]) {
     assert.match(content, new RegExp(field));
   }
@@ -26,6 +27,8 @@ test("extension supports deep and insufficient-context actions", () => {
   assert.match(content, /Try with more page context/);
   assert.match(content, /Explaining locally/);
   assert.match(content, /Explaining with more page context/);
+  assert.match(content, /Explain from first principles/);
+  assert.match(content, /Breaking it down from first principles/);
   assert.match(background, /insufficient_context/);
 });
 

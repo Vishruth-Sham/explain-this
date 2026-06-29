@@ -7,6 +7,7 @@ test("loads system, quick, and deep prompts from YAML", () => {
   assert.match(prompts.system, /surrounding context as the source of truth/);
   assert.match(prompts.quick, /Text before selection/);
   assert.match(prompts.deep, /Main page content/);
+  assert.match(prompts.first_principles, /primitive concepts/);
 });
 
 test("rejects YAML without every required prompt block", () => {

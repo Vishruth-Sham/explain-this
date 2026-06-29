@@ -33,4 +33,5 @@ test("extension uses compact pill text and dismisses on outside pointerdown", ()
   assert.match(content, /font-size:17px/);
   assert.match(content, /addEventListener\("pointerdown"/);
   assert.match(content, /event\.composedPath\(\)\.includes\(host\)/);
+  assert.doesNotMatch(content, /addEventListener\("scroll", close/);
 });

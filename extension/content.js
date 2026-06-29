@@ -34,7 +34,6 @@
     if (event.key === "Escape") return close();
     setTimeout(captureSelection, 0);
   }, true);
-  window.addEventListener("scroll", close, true);
   window.addEventListener("resize", close);
 
   function captureSelection() {

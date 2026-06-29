@@ -1,6 +1,9 @@
+import { loadSystemPrompt } from "./prompt.mjs";
+
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL = "openrouter/free";
 const DEFAULT_TIMEOUT_MS = 25_000;
+const SYSTEM_PROMPT = loadSystemPrompt();
 
 export class ExplainError extends Error {
   constructor(message, { status = 500, code = "internal_error" } = {}) {
@@ -35,11 +38,7 @@ export function buildMessages({ selection, context, pageTitle }) {
   return [
     {
       role: "system",
-      content:
-        "You explain difficult technical documentation to a working software developer who is unfamiliar with this specific system. " +
-        "Explain the selected passage in plain language, preserve important technical terms, and mention a prerequisite only when essential. " +
-        "Use at most 100 words and no heading, preamble, markdown list, or follow-up question. " +
-        "Do not invent behavior that is not supported by the passage or context.",
+      content: SYSTEM_PROMPT,
     },
     {
       role: "user",

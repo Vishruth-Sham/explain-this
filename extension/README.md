@@ -1,10 +1,11 @@
 # Explain This Chrome extension
 
-This directory is a loadable Manifest V3 extension using the backend at `http://127.0.0.1:5173`.
+This loadable Manifest V3 extension uses the local backend at `http://127.0.0.1:5173`.
 
-1. Open `chrome://extensions`.
-2. Enable **Developer mode**.
-3. Choose **Load unpacked** and select this `extension` directory.
-4. Reload a normal web page, select at least five characters, and click **explain this**.
+1. Start Ollama and the local backend as documented in the project README.
+2. Open `chrome://extensions`.
+3. Enable **Developer mode**.
+4. Choose **Load unpacked** and select this `extension` directory.
+5. Reload a normal webpage, select text, and click **explain this**.
 
-Chrome cannot inject this extension into internal `chrome://` pages. When the backend is deployed, update `API_BASE_URL` in `config.js` and its origin in `manifest.json` under `host_permissions`.
+Quick mode sends up to four nearby content blocks before and after the selection. **Explain deeper** adds cleaned article/main content. Chrome does not inject content scripts into internal `chrome://` pages.

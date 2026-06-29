@@ -1,92 +1,138 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ExplainError, buildMessages, explainSelection, validateExplainInput } from "./explain.mjs";
+import {
+  ExplainError,
+  buildMessages,
+  explainSelection,
+  getHealthConfig,
+  resolveTimeoutMs,
+  toErrorResponse,
+  validateExplainInput,
+} from "./explain.mjs";
 
-test("validates and bounds explanation input", () => {
-  assert.throws(() => validateExplainInput({ selection: "aws" }), (error) => {
-    assert.equal(error.code, "selection_too_short");
+test("validates, truncates, and supports legacy fields", () => {
+  assert.throws(() => validateExplainInput({}), (error) => {
+    assert.equal(error.code, "selected_text_required");
     return true;
   });
 
   const input = validateExplainInput({
-    selection: "  Kubernetes   Service  ",
-    context: "x".repeat(5_000),
-    pageTitle: "Kubernetes docs",
+    selection: " selected ",
+    context: "x".repeat(9_000),
+    pageTitle: "Legacy title",
+    selected_text: "y".repeat(5_000),
+    context_mode: "unknown",
   });
-  assert.equal(input.selection, "Kubernetes Service");
-  assert.equal(input.context.length, 4_000);
+  assert.equal(input.selected_text.length, 4_000);
+  assert.equal(input.nearby_text.length, 8_000);
+  assert.equal(input.before_text.length, 4_000);
+  assert.equal(input.page_title, "Legacy title");
+  assert.equal(input.context_mode, "quick");
 });
 
-test("builds a concise developer-focused prompt", () => {
-  const messages = buildMessages({ selection: "A pod is ephemeral.", context: "Pods may be recreated.", pageTitle: "Pods" });
-  assert.equal(messages[0].role, "system");
-  assert.match(messages[0].content, /100 words/);
-  assert.match(messages[1].content, /A pod is ephemeral/);
+test("builds context-first quick and deep prompts", () => {
+  const quick = buildMessages(validateExplainInput({
+    selected_text: "A pod is ephemeral.",
+    before_text: "Pods are workload units.",
+    after_text: "Controllers recreate them.",
+  }));
+  assert.match(quick[0].content, /source of truth/);
+  assert.match(quick[1].content, /Pods are workload units/);
+
+  const deep = buildMessages(validateExplainInput({
+    selected_text: "A pod is ephemeral.",
+    nearby_text: "Nearby",
+    main_content: "Full article",
+    context_mode: "deep",
+  }));
+  assert.match(deep[1].content, /Full article/);
 });
 
-test("calls OpenRouter without exposing provider details to the client", async () => {
+test("calls local Ollama with qwen2.5-coder:3b", async () => {
   let request;
-  const fetchImpl = async (url, options) => {
-    request = { url, options, body: JSON.parse(options.body) };
-    return new Response(
-      JSON.stringify({
-        model: "nvidia/test-model:free",
-        choices: [{ message: { content: "A Service gives changing Pods one stable network address." } }],
-        usage: { total_tokens: 42 },
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } },
-    );
-  };
-
+  const logs = [];
   const result = await explainSelection(
-    { selection: "A Service provides a stable virtual IP for a set of Pods." },
-    { apiKey: "test-key", fetchImpl },
+    { selected_text: "A Service gives Pods a stable address." },
+    {
+      fetchImpl: async (url, options) => {
+        request = { url, body: JSON.parse(options.body) };
+        return new Response(JSON.stringify({ message: { content: "It provides stable discovery for changing Pods." } }));
+      },
+      logger: (line) => logs.push(line),
+    },
   );
-
-  assert.equal(request.url, "https://openrouter.ai/api/v1/chat/completions");
-  assert.equal(request.options.headers.Authorization, "Bearer test-key");
-  assert.equal(request.body.model, "openrouter/free");
-  assert.equal(request.body.provider.data_collection, "deny");
-  assert.match(result.explanation, /stable network address/);
+  assert.equal(request.url, "http://localhost:11434/api/chat");
+  assert.equal(request.body.model, "qwen2.5-coder:3b");
+  assert.equal(request.body.stream, false);
+  assert.match(result.explanation, /stable discovery/);
+  assert.match(logs[0], /model=qwen2\.5-coder:3b mode=quick selected_len=/);
+  assert.match(logs[0], /latency_ms=\d+ status=success/);
 });
 
-test("normalizes missing configuration and provider rate limits", async () => {
+test("detects insufficient context", async () => {
+  const result = await explainSelection(
+    { selected_text: "NewThing.configure()" },
+    {
+      fetchImpl: async () => new Response(JSON.stringify({
+        message: { content: "I need more context to explain this accurately." },
+      })),
+      logger: () => {},
+    },
+  );
+  assert.equal(result.insufficient_context, true);
+});
+
+test("normalizes Ollama connection, missing model, and timeout errors", async () => {
   await assert.rejects(
-    explainSelection({ selection: "A sufficiently long selected passage." }, { apiKey: "" }),
-    (error) => error instanceof ExplainError && error.status === 503 && error.code === "openrouter_not_configured",
+    explainSelection(
+      { selected_text: "A selected passage." },
+      { fetchImpl: async () => { throw new TypeError("fetch failed"); }, logger: () => {} },
+    ),
+    (error) => error instanceof ExplainError && error.status === 503 && error.code === "ollama_not_running",
   );
 
   await assert.rejects(
     explainSelection(
-      { selection: "A sufficiently long selected passage." },
+      { selected_text: "A selected passage." },
       {
-        apiKey: "test-key",
-        fetchImpl: async () =>
-          new Response(JSON.stringify({ error: { message: "limited" } }), {
-            status: 429,
-            headers: { "Content-Type": "application/json" },
-          }),
+        fetchImpl: async () => new Response(JSON.stringify({ error: "model not found" }), { status: 404 }),
+        logger: () => {},
       },
     ),
-    (error) => error.status === 429 && error.code === "rate_limited",
+    (error) => error.status === 503 && error.code === "ollama_model_missing",
+  );
+
+  await assert.rejects(
+    explainSelection(
+      { selected_text: "A selected passage." },
+      {
+        timeoutMs: 5,
+        fetchImpl: (_url, { signal }) => new Promise((_resolve, reject) => {
+          signal.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" })));
+        }),
+        logger: () => {},
+      },
+    ),
+    (error) => error.status === 504 && error.code === "ollama_timeout",
   );
 });
 
-test("removes provider control tokens from explanations", async () => {
-  const result = await explainSelection(
-    { selection: "A sufficiently long selected passage." },
-    {
-      apiKey: "test-key",
-      fetchImpl: async () =>
-        new Response(
-          JSON.stringify({
-            model: "google/test-model:free",
-            choices: [{ message: { content: "A clear explanation.<pad><pad>" } }],
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        ),
-    },
-  );
+test("exposes local defaults", () => {
+  assert.equal(resolveTimeoutMs(undefined), 20_000);
+  assert.equal(resolveTimeoutMs("45"), 45_000);
+  assert.deepEqual(getHealthConfig(), {
+    status: "ok",
+    ollama_base_url: "http://localhost:11434",
+    model: "qwen2.5-coder:3b",
+  });
+});
 
-  assert.equal(result.explanation, "A clear explanation.");
+test("preserves structured request errors", () => {
+  assert.deepEqual(toErrorResponse(Object.assign(new Error("Request body is too large."), {
+    status: 413,
+    code: "body_too_large",
+  })), {
+    status: 413,
+    body: { error: "Request body is too large.", code: "body_too_large" },
+  });
 });

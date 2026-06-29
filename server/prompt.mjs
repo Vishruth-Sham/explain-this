@@ -2,30 +2,32 @@ import { readFileSync } from "node:fs";
 
 const PROMPT_PATH = new URL("../prompts/explain.yaml", import.meta.url);
 
-export function parseSystemPrompt(source) {
+export function parsePromptBlocks(source) {
   const lines = source.split(/\r?\n/);
-  const systemIndex = lines.findIndex((line) => /^system:\s*\|\s*$/.test(line));
+  const blocks = {};
 
-  if (systemIndex === -1) {
-    throw new Error("Prompt YAML must contain a system block.");
-  }
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = lines[index].match(/^([a-z_]+):\s*\|\s*$/);
+    if (!match) continue;
 
-  const block = [];
-  for (const line of lines.slice(systemIndex + 1)) {
-    if (!line.trim()) {
-      block.push("");
-      continue;
+    const content = [];
+    for (index += 1; index < lines.length; index += 1) {
+      const line = lines[index];
+      if (line && !/^\s+/.test(line)) {
+        index -= 1;
+        break;
+      }
+      content.push(line.replace(/^\s{2}/, ""));
     }
-
-    if (!/^\s+/.test(line)) break;
-    block.push(line.replace(/^\s{2}/, ""));
+    blocks[match[1]] = content.join("\n").trim();
   }
 
-  const prompt = block.join("\n").trim();
-  if (!prompt) throw new Error("Prompt YAML system block cannot be empty.");
-  return prompt;
+  for (const key of ["system", "quick", "deep"]) {
+    if (!blocks[key]) throw new Error(`Prompt YAML must contain a ${key} block.`);
+  }
+  return blocks;
 }
 
-export function loadSystemPrompt() {
-  return parseSystemPrompt(readFileSync(PROMPT_PATH, "utf8"));
+export function loadPromptTemplates() {
+  return parsePromptBlocks(readFileSync(PROMPT_PATH, "utf8"));
 }

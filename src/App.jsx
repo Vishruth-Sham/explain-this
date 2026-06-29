@@ -3,16 +3,6 @@ import { DotsThree, LightbulbFilament, X } from "@phosphor-icons/react";
 
 const DEFAULT_SELECTION = "photosynthesis converts light energy";
 
-function getLocalFallback(text) {
-  const normalized = text.trim().replace(/\s+/g, " ");
-
-  if (normalized.toLowerCase().includes("photosynthesis")) {
-    return "Plants capture light and turn it into stored chemical energy. That energy is packaged in glucose, which the plant can use later to grow and function.";
-  }
-
-  return `This passage is describing “${normalized}” in practical terms. It identifies the main action, what it affects, and why that relationship matters in the surrounding explanation.`;
-}
-
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
@@ -106,14 +96,15 @@ export function App() {
 
       const result = await response.json();
       if (!response.ok || !result.explanation) {
-        throw new Error(result?.error?.message || "Explanation request failed.");
+        const message = typeof result?.error === "string" ? result.error : result?.error?.message;
+        throw new Error(message || "Explanation request failed.");
       }
 
       setExplanation(result.explanation);
     } catch (error) {
       if (error.name === "AbortError") return;
-      console.warn("Using the local explanation fallback:", error.message);
-      setExplanation(getLocalFallback(selection.text));
+      console.warn("Local explanation failed:", error.message);
+      setExplanation(error.message);
     } finally {
       if (requestRef.current === controller) {
         requestRef.current = null;

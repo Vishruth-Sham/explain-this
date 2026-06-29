@@ -12,4 +12,6 @@ When implementing from a selected generated mock, treat that image as the source
 - Clicking the pill expands it into one concise explanation popover.
 - Keep version one single-purpose: no explanation modes, tabs, or follow-up chat.
 - Match the supplied dark graphite visual reference with a blue selection state and restrained elevation.
-- Keep `OPENROUTER_API_KEY` server-side. The client calls `/api/explain` and must never embed a shared provider key.
+- Use only local Ollama with `qwen2.5-coder:3b`; do not add OpenRouter or another cloud fallback.
+- Treat selected text and extracted page context as the source of truth. If context is insufficient, say so explicitly.
+- Quick mode sends nearby blocks; deep mode adds cleaned main-page content through the existing popover.

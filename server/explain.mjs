@@ -1,9 +1,21 @@
-import { loadSystemPrompt } from "./prompt.mjs";
+import { loadPromptTemplates } from "./prompt.mjs";
 
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const DEFAULT_MODEL = "openrouter/free";
-const DEFAULT_TIMEOUT_MS = 25_000;
-const SYSTEM_PROMPT = loadSystemPrompt();
+const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434";
+const DEFAULT_MODEL = "qwen2.5-coder:3b";
+const DEFAULT_TIMEOUT_MS = 20_000;
+const INSUFFICIENT_CONTEXT = "I need more context to explain this accurately.";
+const PROMPTS = loadPromptTemplates();
+
+const LIMITS = {
+  selected_text: 4_000,
+  before_text: 4_000,
+  after_text: 4_000,
+  nearby_text: 8_000,
+  section_heading: 500,
+  page_title: 300,
+  page_url: 1_000,
+  main_content: 20_000,
+};
 
 export class ExplainError extends Error {
   constructor(message, { status = 500, code = "internal_error" } = {}) {
@@ -14,171 +26,157 @@ export class ExplainError extends Error {
   }
 }
 
+function boundedString(value, limit) {
+  return typeof value === "string" ? value.trim().slice(0, limit) : "";
+}
+
 export function validateExplainInput(payload) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     throw new ExplainError("A JSON request body is required.", { status: 400, code: "invalid_request" });
   }
 
-  const selection = typeof payload.selection === "string" ? payload.selection.trim().replace(/\s+/g, " ") : "";
-  const context = typeof payload.context === "string" ? payload.context.trim().slice(0, 4_000) : "";
-  const pageTitle = typeof payload.pageTitle === "string" ? payload.pageTitle.trim().slice(0, 200) : "";
-
-  if (selection.length < 5) {
-    throw new ExplainError("Select at least 5 characters.", { status: 400, code: "selection_too_short" });
+  const selectedText = boundedString(payload.selected_text ?? payload.selection, LIMITS.selected_text);
+  if (!selectedText) {
+    throw new ExplainError("Selected text is required.", { status: 400, code: "selected_text_required" });
   }
 
-  if (selection.length > 2_000) {
-    throw new ExplainError("The selected text is too long.", { status: 413, code: "selection_too_long" });
-  }
+  const legacyContext = boundedString(payload.context, LIMITS.nearby_text);
+  const contextMode = payload.context_mode === "deep" ? "deep" : "quick";
+  const input = {
+    selected_text: selectedText,
+    before_text: boundedString(payload.before_text, LIMITS.before_text),
+    after_text: boundedString(payload.after_text, LIMITS.after_text),
+    nearby_text: boundedString(payload.nearby_text, LIMITS.nearby_text) || legacyContext,
+    section_heading: boundedString(payload.section_heading, LIMITS.section_heading),
+    page_title: boundedString(payload.page_title ?? payload.pageTitle, LIMITS.page_title),
+    page_url: boundedString(payload.page_url, LIMITS.page_url),
+    main_content: boundedString(payload.main_content, LIMITS.main_content),
+    context_mode: contextMode,
+  };
 
-  return { selection, context, pageTitle };
+  if (!input.before_text && !input.after_text && legacyContext) input.before_text = legacyContext.slice(0, LIMITS.before_text);
+  return input;
 }
 
-export function buildMessages({ selection, context, pageTitle }) {
+function interpolate(template, values) {
+  return template.replace(/\{\{([a-z_]+)\}\}/g, (_match, key) => values[key] || "");
+}
+
+export function buildMessages(input) {
+  const template = input.context_mode === "deep" ? PROMPTS.deep : PROMPTS.quick;
   return [
-    {
-      role: "system",
-      content: SYSTEM_PROMPT,
-    },
-    {
-      role: "user",
-      content: [
-        pageTitle ? `Page title: ${pageTitle}` : null,
-        `Selected passage:\n${selection}`,
-        context ? `Nearby context:\n${context}` : null,
-      ]
-        .filter(Boolean)
-        .join("\n\n"),
-    },
+    { role: "system", content: PROMPTS.system },
+    { role: "user", content: interpolate(template, input) },
   ];
 }
 
-function parseProviderResponse(rawBody) {
-  const body = rawBody.trim();
-
-  if (!body) return null;
-
-  try {
-    return JSON.parse(body);
-  } catch {
-    // Some upstreams occasionally prepend transport noise before the JSON body.
-    const objectStart = body.indexOf("{");
-    const objectEnd = body.lastIndexOf("}");
-
-    if (objectStart !== -1 && objectEnd > objectStart) {
-      try {
-        return JSON.parse(body.slice(objectStart, objectEnd + 1));
-      } catch {
-        // Fall through to the normalized provider error below.
-      }
-    }
-
-    throw new ExplainError("The model provider returned an invalid response.", {
-      status: 502,
-      code: "invalid_provider_response",
-    });
-  }
+export function resolveTimeoutMs(value = process.env.OLLAMA_TIMEOUT_SECONDS) {
+  const seconds = Number(value);
+  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1_000 : DEFAULT_TIMEOUT_MS;
 }
 
-function cleanExplanation(content) {
-  return content
-    .replace(/<(?:pad|bos|eos)>/gi, "")
-    .replace(/\s+/g, " ")
-    .trim();
+function isInsufficientContext(explanation) {
+  return explanation.trim().toLowerCase().startsWith(INSUFFICIENT_CONTEXT.toLowerCase());
+}
+
+function requestLog(input, { model, latencyMs, status }) {
+  return [
+    "/explain",
+    `model=${model}`,
+    `mode=${input.context_mode}`,
+    `selected_len=${input.selected_text.length}`,
+    `before_len=${input.before_text.length}`,
+    `after_len=${input.after_text.length}`,
+    `nearby_len=${input.nearby_text.length}`,
+    `main_content_len=${input.main_content.length}`,
+    `latency_ms=${latencyMs}`,
+    `status=${status}`,
+  ].join(" ");
 }
 
 export async function explainSelection(
   payload,
   {
-    apiKey = process.env.OPENROUTER_API_KEY,
-    model = process.env.OPENROUTER_MODEL || DEFAULT_MODEL,
-    dataCollection = process.env.OPENROUTER_DATA_COLLECTION || "deny",
-    timeoutMs = DEFAULT_TIMEOUT_MS,
+    baseUrl = process.env.OLLAMA_BASE_URL || DEFAULT_OLLAMA_BASE_URL,
+    model = process.env.OLLAMA_MODEL || DEFAULT_MODEL,
+    timeoutMs = resolveTimeoutMs(),
     fetchImpl = fetch,
+    logger = console.info,
   } = {},
 ) {
   const input = validateExplainInput(payload);
-
-  if (!apiKey) {
-    throw new ExplainError("OpenRouter is not configured.", { status: 503, code: "openrouter_not_configured" });
-  }
-
+  const startedAt = Date.now();
+  let status = "error";
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetchImpl(OPENROUTER_URL, {
+    const response = await fetchImpl(`${baseUrl.replace(/\/$/, "")}/api/chat`, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "X-Title": "Explain This",
-      },
-      body: JSON.stringify({
-        model,
-        messages: buildMessages(input),
-        max_tokens: 180,
-        temperature: 0.2,
-        provider: {
-          data_collection: dataCollection,
-        },
-      }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model, stream: false, messages: buildMessages(input) }),
       signal: controller.signal,
     });
-
-    const data = parseProviderResponse(await response.text());
+    const data = await response.json().catch(() => null);
 
     if (!response.ok) {
-      const status = response.status === 429 ? 429 : 502;
-      const code = response.status === 429 ? "rate_limited" : "provider_error";
-      const providerMessage = typeof data?.error?.message === "string" ? data.error.message.trim() : "";
-      throw new ExplainError(
-        providerMessage ||
-          (response.status === 429
-            ? "The free model is temporarily rate-limited."
-            : "The model provider could not complete the request."),
-        { status, code },
-      );
+      const detail = typeof data?.error === "string" ? data.error : "";
+      if (response.status === 404 || /model.*not found|not found.*model/i.test(detail)) {
+        throw new ExplainError(`Model not found. Install it with: ollama pull ${model}`, {
+          status: 503,
+          code: "ollama_model_missing",
+        });
+      }
+      throw new ExplainError("Local model inference failed.", { status: 500, code: "ollama_inference_failed" });
     }
 
-    const content = data?.choices?.[0]?.message?.content;
-    const explanation = typeof content === "string" ? cleanExplanation(content) : "";
+    const explanation = typeof data?.message?.content === "string" ? data.message.content.trim() : "";
     if (!explanation) {
-      throw new ExplainError("The model returned an empty explanation.", {
-        status: 502,
-        code: "empty_provider_response",
-      });
+      throw new ExplainError("Local model inference failed.", { status: 500, code: "ollama_inference_failed" });
     }
 
+    status = "success";
     return {
       explanation,
-      model: data.model || model,
-      usage: data.usage || null,
+      model,
+      context_mode: input.context_mode,
+      insufficient_context: isInsufficientContext(explanation),
     };
   } catch (error) {
-    if (error instanceof ExplainError) throw error;
-    if (error?.name === "AbortError") {
-      throw new ExplainError("The explanation request timed out.", { status: 504, code: "provider_timeout" });
+    if (error instanceof ExplainError) {
+      status = error.code;
+      throw error;
     }
-    throw new ExplainError("The model provider is unavailable.", { status: 502, code: "provider_unavailable" });
+    if (error?.name === "AbortError") {
+      status = "timeout";
+      throw new ExplainError("Local model timed out. Try shorter selected text or use quick mode.", {
+        status: 504,
+        code: "ollama_timeout",
+      });
+    }
+    status = "ollama_unavailable";
+    throw new ExplainError("Ollama is not running. Start it with: ollama serve", {
+      status: 503,
+      code: "ollama_not_running",
+    });
   } finally {
     clearTimeout(timeout);
+    logger(requestLog(input, { model, latencyMs: Date.now() - startedAt, status }));
   }
 }
 
-export function toErrorResponse(error) {
-  const normalized =
-    error instanceof ExplainError
-      ? error
-      : new ExplainError("An unexpected server error occurred.", { status: 500, code: "internal_error" });
+export function getHealthConfig({
+  baseUrl = process.env.OLLAMA_BASE_URL || DEFAULT_OLLAMA_BASE_URL,
+  model = process.env.OLLAMA_MODEL || DEFAULT_MODEL,
+} = {}) {
+  return { status: "ok", ollama_base_url: baseUrl, model };
+}
 
-  return {
-    status: normalized.status,
-    body: {
-      error: {
-        code: normalized.code,
-        message: normalized.message,
-      },
-    },
-  };
+export function toErrorResponse(error) {
+  const normalized = error instanceof ExplainError
+    ? error
+    : Number.isInteger(error?.status)
+      ? new ExplainError(error.message, { status: error.status, code: error.code || "invalid_request" })
+      : new ExplainError("Local model inference failed.", { status: 500, code: "ollama_inference_failed" });
+  return { status: normalized.status, body: { error: normalized.message, code: normalized.code } };
 }

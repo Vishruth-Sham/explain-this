@@ -18,8 +18,12 @@
   let selected = null;
   let requestVersion = 0;
 
-  document.addEventListener("mouseup", () => setTimeout(captureSelection, 0), true);
+  document.addEventListener("mouseup", (event) => {
+    if (event.composedPath().includes(host)) return;
+    setTimeout(captureSelection, 0);
+  }, true);
   document.addEventListener("keyup", (event) => {
+    if (event.composedPath().includes(host)) return;
     if (event.key === "Escape") return close();
     setTimeout(captureSelection, 0);
   }, true);

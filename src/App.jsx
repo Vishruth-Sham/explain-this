@@ -1,0 +1,173 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { DotsThree, LightbulbFilament, X } from "@phosphor-icons/react";
+
+const DEFAULT_SELECTION = "photosynthesis converts light energy";
+
+function getExplanation(text) {
+  const normalized = text.trim().replace(/\s+/g, " ");
+
+  if (normalized.toLowerCase().includes("photosynthesis")) {
+    return "Plants capture light and turn it into stored chemical energy. That energy is packaged in glucose, which the plant can use later to grow and function.";
+  }
+
+  return `This passage is describing “${normalized}” in practical terms. It identifies the main action, what it affects, and why that relationship matters in the surrounding explanation.`;
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+export function App() {
+  const articleRef = useRef(null);
+  const defaultSelectionRef = useRef(null);
+  const ignoreSelectionRef = useRef(false);
+  const [selection, setSelection] = useState(null);
+  const [view, setView] = useState("pill");
+  const [loading, setLoading] = useState(false);
+
+  const captureSelection = useCallback(() => {
+    if (ignoreSelectionRef.current) return;
+
+    const activeSelection = window.getSelection();
+    const selectedText = activeSelection?.toString().trim() ?? "";
+
+    if (!selectedText || !activeSelection?.rangeCount) {
+      return;
+    }
+
+    const range = activeSelection.getRangeAt(0);
+    if (!articleRef.current?.contains(range.commonAncestorContainer)) return;
+
+    const rect = range.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+
+    setSelection({ text: selectedText, rect });
+    setView("pill");
+    setLoading(false);
+  }, []);
+
+  const selectDefaultText = useCallback(() => {
+    const node = defaultSelectionRef.current?.firstChild;
+    if (!node) return;
+
+    const range = document.createRange();
+    range.selectNodeContents(defaultSelectionRef.current);
+    const activeSelection = window.getSelection();
+    activeSelection.removeAllRanges();
+    activeSelection.addRange(range);
+    captureSelection();
+  }, [captureSelection]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(selectDefaultText, 350);
+    document.addEventListener("mouseup", captureSelection);
+    document.addEventListener("keyup", captureSelection);
+
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("mouseup", captureSelection);
+      document.removeEventListener("keyup", captureSelection);
+    };
+  }, [captureSelection, selectDefaultText]);
+
+  useEffect(() => {
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") {
+        setSelection(null);
+        window.getSelection()?.removeAllRanges();
+      }
+    };
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, []);
+
+  const openExplanation = () => {
+    ignoreSelectionRef.current = true;
+    setView("popover");
+    setLoading(true);
+    window.setTimeout(() => {
+      setLoading(false);
+      ignoreSelectionRef.current = false;
+    }, 650);
+  };
+
+  const closeOverlay = () => {
+    setSelection(null);
+    setView("pill");
+    setLoading(false);
+    window.getSelection()?.removeAllRanges();
+  };
+
+  const pillStyle = selection
+    ? {
+        left: clamp(selection.rect.left + selection.rect.width / 2, 130, window.innerWidth - 130),
+        top: Math.max(12, selection.rect.top - 89),
+      }
+    : undefined;
+
+  const popoverWidth = Math.min(390, window.innerWidth - 32);
+  const popoverStyle = selection
+    ? {
+        left: clamp(
+          selection.rect.left + selection.rect.width / 2 - popoverWidth / 2,
+          16,
+          window.innerWidth - popoverWidth - 16,
+        ),
+        top: selection.rect.top > 220 ? selection.rect.top - 194 : selection.rect.bottom + 18,
+        width: popoverWidth,
+      }
+    : undefined;
+
+  return (
+    <main className="workspace">
+      <header className="concept-header">
+        <p>OPTION A — FLOATING PILL</p>
+        <button className="menu-button" aria-label="More options">
+          <DotsThree size={28} weight="bold" />
+        </button>
+      </header>
+
+      <article className="reading-surface" ref={articleRef}>
+        <p>
+          The process of <span ref={defaultSelectionRef}>{DEFAULT_SELECTION}</span> into chemical energy stored in glucose
+          molecules, sustaining nearly all life on Earth.
+        </p>
+      </article>
+
+      <p className="instruction">select → pill appears above → tap to expand into a popover</p>
+
+      {selection && view === "pill" && (
+        <button className="explain-pill" style={pillStyle} onClick={openExplanation}>
+          <span className="icon-orb" aria-hidden="true">
+            <LightbulbFilament size={22} weight="regular" />
+          </span>
+          <span>explain this</span>
+        </button>
+      )}
+
+      {selection && view === "popover" && (
+        <section className="explanation-popover" style={popoverStyle} aria-live="polite">
+          <div className="popover-heading">
+            <span className="icon-orb" aria-hidden="true">
+              <LightbulbFilament size={20} weight="regular" />
+            </span>
+            <span>Explanation</span>
+            <button className="close-button" onClick={closeOverlay} aria-label="Close explanation">
+              <X size={18} weight="bold" />
+            </button>
+          </div>
+          {loading ? (
+            <div className="loading-lines" aria-label="Generating explanation">
+              <span />
+              <span />
+              <span />
+            </div>
+          ) : (
+            <p>{getExplanation(selection.text)}</p>
+          )}
+        </section>
+      )}
+    </main>
+  );
+}

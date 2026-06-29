@@ -3,7 +3,7 @@ import { DotsThree, LightbulbFilament, X } from "@phosphor-icons/react";
 
 const DEFAULT_SELECTION = "photosynthesis converts light energy";
 
-function getExplanation(text) {
+function getLocalFallback(text) {
   const normalized = text.trim().replace(/\s+/g, " ");
 
   if (normalized.toLowerCase().includes("photosynthesis")) {
@@ -20,14 +20,13 @@ function clamp(value, min, max) {
 export function App() {
   const articleRef = useRef(null);
   const defaultSelectionRef = useRef(null);
-  const ignoreSelectionRef = useRef(false);
+  const requestRef = useRef(null);
   const [selection, setSelection] = useState(null);
   const [view, setView] = useState("pill");
   const [loading, setLoading] = useState(false);
+  const [explanation, setExplanation] = useState("");
 
   const captureSelection = useCallback(() => {
-    if (ignoreSelectionRef.current) return;
-
     const activeSelection = window.getSelection();
     const selectedText = activeSelection?.toString().trim() ?? "";
 
@@ -44,6 +43,8 @@ export function App() {
     setSelection({ text: selectedText, rect });
     setView("pill");
     setLoading(false);
+    setExplanation("");
+    requestRef.current?.abort();
   }, []);
 
   const selectDefaultText = useCallback(() => {
@@ -82,20 +83,52 @@ export function App() {
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, []);
 
-  const openExplanation = () => {
-    ignoreSelectionRef.current = true;
+  const openExplanation = async () => {
     setView("popover");
     setLoading(true);
-    window.setTimeout(() => {
-      setLoading(false);
-      ignoreSelectionRef.current = false;
-    }, 650);
+    setExplanation("");
+
+    const controller = new AbortController();
+    requestRef.current?.abort();
+    requestRef.current = controller;
+
+    try {
+      const response = await fetch("/api/explain", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          selection: selection.text,
+          context: articleRef.current?.innerText || "",
+          pageTitle: document.title,
+        }),
+        signal: controller.signal,
+      });
+
+      const result = await response.json();
+      if (!response.ok || !result.explanation) {
+        throw new Error(result?.error?.message || "Explanation request failed.");
+      }
+
+      setExplanation(result.explanation);
+    } catch (error) {
+      if (error.name === "AbortError") return;
+      console.warn("Using the local explanation fallback:", error.message);
+      setExplanation(getLocalFallback(selection.text));
+    } finally {
+      if (requestRef.current === controller) {
+        requestRef.current = null;
+        setLoading(false);
+      }
+    }
   };
 
   const closeOverlay = () => {
     setSelection(null);
     setView("pill");
     setLoading(false);
+    setExplanation("");
+    requestRef.current?.abort();
+    requestRef.current = null;
     window.getSelection()?.removeAllRanges();
   };
 
@@ -164,7 +197,7 @@ export function App() {
               <span />
             </div>
           ) : (
-            <p>{getExplanation(selection.text)}</p>
+            <p>{explanation}</p>
           )}
         </section>
       )}

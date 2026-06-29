@@ -72,3 +72,21 @@ test("normalizes missing configuration and provider rate limits", async () => {
   );
 });
 
+test("removes provider control tokens from explanations", async () => {
+  const result = await explainSelection(
+    { selection: "A sufficiently long selected passage." },
+    {
+      apiKey: "test-key",
+      fetchImpl: async () =>
+        new Response(
+          JSON.stringify({
+            model: "google/test-model:free",
+            choices: [{ message: { content: "A clear explanation.<pad><pad>" } }],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+    },
+  );
+
+  assert.equal(result.explanation, "A clear explanation.");
+});

@@ -54,6 +54,40 @@ export function buildMessages({ selection, context, pageTitle }) {
   ];
 }
 
+function parseProviderResponse(rawBody) {
+  const body = rawBody.trim();
+
+  if (!body) return null;
+
+  try {
+    return JSON.parse(body);
+  } catch {
+    // Some upstreams occasionally prepend transport noise before the JSON body.
+    const objectStart = body.indexOf("{");
+    const objectEnd = body.lastIndexOf("}");
+
+    if (objectStart !== -1 && objectEnd > objectStart) {
+      try {
+        return JSON.parse(body.slice(objectStart, objectEnd + 1));
+      } catch {
+        // Fall through to the normalized provider error below.
+      }
+    }
+
+    throw new ExplainError("The model provider returned an invalid response.", {
+      status: 502,
+      code: "invalid_provider_response",
+    });
+  }
+}
+
+function cleanExplanation(content) {
+  return content
+    .replace(/<(?:pad|bos|eos)>/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export async function explainSelection(
   payload,
   {
@@ -93,26 +127,23 @@ export async function explainSelection(
       signal: controller.signal,
     });
 
-    let data;
-    try {
-      data = await response.json();
-    } catch {
-      throw new ExplainError("The model provider returned an invalid response.", {
-        status: 502,
-        code: "invalid_provider_response",
-      });
-    }
+    const data = parseProviderResponse(await response.text());
 
     if (!response.ok) {
       const status = response.status === 429 ? 429 : 502;
       const code = response.status === 429 ? "rate_limited" : "provider_error";
+      const providerMessage = typeof data?.error?.message === "string" ? data.error.message.trim() : "";
       throw new ExplainError(
-        response.status === 429 ? "The free model is temporarily rate-limited." : "The model provider could not complete the request.",
+        providerMessage ||
+          (response.status === 429
+            ? "The free model is temporarily rate-limited."
+            : "The model provider could not complete the request."),
         { status, code },
       );
     }
 
-    const explanation = data?.choices?.[0]?.message?.content?.trim();
+    const content = data?.choices?.[0]?.message?.content;
+    const explanation = typeof content === "string" ? cleanExplanation(content) : "";
     if (!explanation) {
       throw new ExplainError("The model returned an empty explanation.", {
         status: 502,
@@ -152,4 +183,3 @@ export function toErrorResponse(error) {
     },
   };
 }
-

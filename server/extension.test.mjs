@@ -28,3 +28,9 @@ test("extension supports deep and insufficient-context actions", () => {
   assert.match(content, /Explaining with more page context/);
   assert.match(background, /insufficient_context/);
 });
+
+test("extension uses compact pill text and dismisses on outside pointerdown", () => {
+  assert.match(content, /font-size:17px/);
+  assert.match(content, /addEventListener\("pointerdown"/);
+  assert.match(content, /event\.composedPath\(\)\.includes\(host\)/);
+});

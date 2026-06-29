@@ -111,7 +111,7 @@ button {
   background: #2c2c2a;
   box-shadow: 0 14px 32px rgba(0, 0, 0, 0.28);
   cursor: pointer;
-  font-size: 27px;
+  font-size: 20px;
   font-weight: 650;
   letter-spacing: -0.03em;
   animation: pill-in 150ms ease-out;

@@ -123,6 +123,16 @@ export function App() {
     window.getSelection()?.removeAllRanges();
   };
 
+  useEffect(() => {
+    const closeOnOutsidePointer = (event) => {
+      if (!selection || event.target.closest?.(".explain-pill, .explanation-popover")) return;
+      closeOverlay();
+    };
+
+    document.addEventListener("pointerdown", closeOnOutsidePointer, true);
+    return () => document.removeEventListener("pointerdown", closeOnOutsidePointer, true);
+  });
+
   const pillStyle = selection
     ? {
         left: clamp(selection.rect.left + selection.rect.width / 2, 130, window.innerWidth - 130),

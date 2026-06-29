@@ -15,3 +15,4 @@ When implementing from a selected generated mock, treat that image as the source
 - Use only local Ollama with `qwen2.5-coder:3b`; do not add OpenRouter or another cloud fallback.
 - Treat selected text and extracted page context as the source of truth. If context is insufficient, say so explicitly.
 - Quick mode sends nearby blocks; deep mode adds cleaned main-page content through the existing popover.
+- Keep the floating pill label smaller than the surrounding reading text, and dismiss overlays on outside click.

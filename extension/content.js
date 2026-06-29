@@ -25,6 +25,10 @@
     if (event.composedPath().includes(host)) return;
     setTimeout(captureSelection, 0);
   }, true);
+  document.addEventListener("pointerdown", (event) => {
+    if (event.composedPath().includes(host)) return;
+    if (selected) close();
+  }, true);
   document.addEventListener("keyup", (event) => {
     if (event.composedPath().includes(host)) return;
     if (event.key === "Escape") return close();
@@ -178,7 +182,7 @@
   function styles() {
     return `
       :host,*,*::before,*::after{box-sizing:border-box}.surface{position:fixed;inset:0;pointer-events:none;font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}button{font:inherit}
-      .pill{position:fixed;display:flex;align-items:center;gap:11px;min-width:206px;height:58px;padding:0 22px;transform:translateX(-50%);border:1px solid #555552;border-radius:999px;color:#fff;background:#2c2c2a;box-shadow:0 14px 32px rgba(0,0,0,.28);cursor:pointer;pointer-events:auto;font-size:20px;font-weight:650;letter-spacing:-.025em;animation:pill-in 150ms ease-out}
+      .pill{position:fixed;display:flex;align-items:center;gap:11px;min-width:206px;height:58px;padding:0 22px;transform:translateX(-50%);border:1px solid #555552;border-radius:999px;color:#fff;background:#2c2c2a;box-shadow:0 14px 32px rgba(0,0,0,.28);cursor:pointer;pointer-events:auto;font-size:17px;font-weight:650;letter-spacing:-.025em;animation:pill-in 150ms ease-out}
       .pill::after,.popover::after{content:"";position:absolute;left:50%;bottom:-8px;width:14px;height:14px;transform:translateX(-50%) rotate(45deg);border-right:1px solid #555552;border-bottom:1px solid #555552;background:#2c2c2a}.pill:hover,.pill:focus-visible{border-color:#71716c;background:#343432;outline:none}
       .orb{display:grid;flex:0 0 auto;width:32px;height:32px;place-items:center;border-radius:50%;background:#083568}.orb img{width:19px;height:19px}.orb.small{width:30px;height:30px}.orb.small img{width:17px;height:17px}
       .popover{position:fixed;max-height:70vh;overflow:auto;padding:17px 19px 19px;border:1px solid #555552;border-radius:18px;color:#ecebe7;background:#2c2c2a;box-shadow:0 18px 46px rgba(0,0,0,.34);pointer-events:auto;animation:popover-in 180ms ease-out}.popover header{display:flex;align-items:center;gap:10px;color:#fff;font-size:16px}.popover strong{font-weight:700}

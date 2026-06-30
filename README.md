@@ -2,10 +2,6 @@
 
 Local, context-first explanations for selected text. The Chrome extension extracts the selected passage and nearby page context, sends it to a local Vite API, and the API calls local Ollama models. Page content stays on the machine.
 
-## About
-
-Explain This is a small local reading tool for dense technical documentation. Select text on a webpage, click the floating **explain this** pill, and get a concise explanation grounded in the surrounding page context. The first version is intentionally simple: a Chrome extension, a local backend, YAML prompts, and local Ollama models.
-
 ## How It Works
 
 ```txt

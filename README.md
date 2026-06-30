@@ -42,7 +42,7 @@ OLLAMA_FIRST_PRINCIPLES_MODEL=qwen3:4b-thinking
 OLLAMA_FIRST_PRINCIPLES_TIMEOUT_SECONDS=60
 ```
 
-Do not put OpenRouter or other cloud-provider keys in this app. The current product direction is local-only through Ollama.
+The app is configured for local Ollama models. Page content is sent only to the local backend and local Ollama instance.
 
 ### 3. Install dependencies and run the backend
 
@@ -144,12 +144,3 @@ pnpm build
 node --check extension/content.js
 node --check extension/background.js
 ```
-
-## Notes For AI Agents
-
-- Work from the repo root, not from a temporary scratch workspace.
-- Keep `extension/config.js` pointed at `http://127.0.0.1:5173` for local development.
-- Keep prompts in `prompts/explain.yaml`; do not inline prompt text into the extension.
-- Keep provider keys and model calls server-side. The extension must call the local backend through `extension/background.js`.
-- After changing `extension/content.js`, reload the unpacked extension and the target webpage.
-- Use `pnpm test` plus `node --check extension/content.js` and `node --check extension/background.js` before handing off.

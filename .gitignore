@@ -4,3 +4,13 @@ dist/
 .env.local
 .DS_Store
 *.log
+
+# Local agent/prototype notes
+AGENTS.md
+**/AGENTS.md
+
+# Visual QA and prototype captures
+qa/
+qa-*.html
+*-state.png
+design-qa.md

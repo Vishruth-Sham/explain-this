@@ -62,7 +62,7 @@ The local backend runs at `http://127.0.0.1:5173` and exposes:
 1. Open `chrome://extensions`.
 2. Enable **Developer mode**.
 3. Choose **Load unpacked**.
-4. Select `/Users/vishruth/Projects/explain-this/extension`.
+4. Select the repo's `extension` directory.
 5. Reload any already-open webpage before testing the extension.
 
 Chrome content scripts do not refresh on existing tabs until the extension and page are reloaded.
@@ -147,7 +147,7 @@ node --check extension/background.js
 
 ## Notes For AI Agents
 
-- Work in `/Users/vishruth/Projects/explain-this`, not the Codex scratch workspace.
+- Work from the repo root, not from any temporary Codex scratch workspace.
 - Keep `extension/config.js` pointed at `http://127.0.0.1:5173` for local development.
 - Keep prompts in `prompts/explain.yaml`; do not inline prompt text into the extension.
 - Keep provider keys and model calls server-side. The extension must call the local backend through `extension/background.js`.

@@ -8,4 +8,6 @@ This loadable Manifest V3 extension uses the local backend at `http://127.0.0.1:
 4. Choose **Load unpacked** and select this `extension` directory.
 5. Reload a normal webpage, select text, and click **explain this**.
 
-Quick mode sends up to four nearby content blocks before and after the selection. **Explain deeper** adds cleaned article/main content. Chrome does not inject content scripts into internal `chrome://` pages.
+Quick mode sends the selected text, nearby blocks, nearest heading, page title, and URL. **Explain deeper** adds cleaned article/main content. **Explain from first principles** reuses the same selection and context with the first-principles backend mode.
+
+After editing `content.js`, reload the unpacked extension and reload the target webpage. Chrome does not inject content scripts into internal `chrome://` pages.

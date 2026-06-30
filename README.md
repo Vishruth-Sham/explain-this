@@ -1,14 +1,23 @@
 # Explain This
 
-Local, context-first explanations for selected text. The Chrome extension extracts surrounding page context and sends it to a local Ollama-backed API. No page content or model request is sent to a cloud provider.
+Local, context-first explanations for selected text. The Chrome extension extracts the selected passage and nearby page context, sends it to a local Vite API, and the API calls local Ollama models. Page content stays on the machine.
 
-## Architecture
+## How It Works
 
 ```txt
-Chrome extension → local Vite backend → Ollama → mode-specific local model
+select text on a webpage
+  -> content script captures selected_text and page context
+  -> extension service worker POSTs to http://127.0.0.1:5173/api/explain
+  -> Vite middleware validates and builds the prompt from prompts/explain.yaml
+  -> Ollama runs the selected local model
+  -> extension renders the answer in the same popover
 ```
 
-## Install Ollama and the model
+Normal explanations use `qwen2.5-coder:3b`. First-principles explanations use `qwen3:4b-thinking` and can take noticeably longer.
+
+## Setup
+
+### 1. Install Ollama and models
 
 ```bash
 brew install ollama
@@ -17,7 +26,9 @@ ollama pull qwen3:4b-thinking
 ollama serve
 ```
 
-## Configure
+If Ollama already runs as a service, `ollama serve` may report that the port is already in use. That is fine as long as `curl http://localhost:11434/api/tags` returns model data.
+
+### 2. Configure environment
 
 ```bash
 cp .env.example .env
@@ -31,20 +42,54 @@ OLLAMA_FIRST_PRINCIPLES_MODEL=qwen3:4b-thinking
 OLLAMA_FIRST_PRINCIPLES_TIMEOUT_SECONDS=60
 ```
 
-## Run locally
+Do not put OpenRouter or other cloud-provider keys in this app. The current product direction is local-only through Ollama.
+
+### 3. Install dependencies and run the backend
 
 ```bash
 pnpm install
 pnpm dev
 ```
 
-The backend exposes:
+The local backend runs at `http://127.0.0.1:5173` and exposes:
 
 - `GET /health`
 - `POST /explain`
 - `POST /api/explain` for backwards compatibility
 
-## Test health
+### 4. Load the Chrome extension
+
+1. Open `chrome://extensions`.
+2. Enable **Developer mode**.
+3. Choose **Load unpacked**.
+4. Select `/Users/vishruth/Projects/explain-this/extension`.
+5. Reload any already-open webpage before testing the extension.
+
+Chrome content scripts do not refresh on existing tabs until the extension and page are reloaded.
+
+## API Contract
+
+The extension sends this shape to `/api/explain`:
+
+```json
+{
+  "selected_text": "A Service gives Pods a stable address.",
+  "before_text": "Pods can be recreated and receive new IP addresses.",
+  "after_text": "Clients use the Service instead of tracking each Pod directly.",
+  "nearby_text": "Before, selected, and after text combined.",
+  "section_heading": "Services",
+  "page_title": "Kubernetes Services",
+  "page_url": "https://example.com/services",
+  "context_mode": "quick",
+  "explanation_mode": "normal"
+}
+```
+
+`context_mode` can be `quick` or `deep`. Deep mode also sends `main_content`, capped server-side at 20,000 characters.
+
+`explanation_mode` can be `normal` or `first_principles`.
+
+## Manual Checks
 
 ```bash
 curl http://127.0.0.1:5173/health
@@ -56,11 +101,12 @@ Expected:
 {
   "status": "ok",
   "ollama_base_url": "http://localhost:11434",
-  "model": "qwen2.5-coder:3b"
+  "model": "qwen2.5-coder:3b",
+  "first_principles_model": "qwen3:4b-thinking"
 }
 ```
 
-## Test an explanation
+Normal explanation:
 
 ```bash
 curl -X POST http://127.0.0.1:5173/explain \
@@ -76,13 +122,19 @@ curl -X POST http://127.0.0.1:5173/explain \
   }'
 ```
 
-## Chrome extension
+First-principles explanation:
 
-Open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select the [`extension`](./extension) directory. Reload the webpage after loading or updating the extension.
-
-Quick mode sends the selected text, nearby blocks, nearest section heading, page title, and URL. **Explain deeper** sends cleaned main-page content capped at 20,000 characters.
-
-Normal explanations use `qwen2.5-coder:3b`. **Explain from first principles** reuses the current context, applies the first-principles prompt, and uses `qwen3:4b-thinking`.
+```bash
+curl -X POST http://127.0.0.1:5173/explain \
+  -H "Content-Type: application/json" \
+  -d '{
+    "selected_text": "A Service gives Pods a stable address.",
+    "before_text": "Pods can be recreated and receive new IP addresses.",
+    "after_text": "Clients use the Service instead of tracking each Pod directly.",
+    "context_mode": "quick",
+    "explanation_mode": "first_principles"
+  }'
+```
 
 ## Tests
 
@@ -92,3 +144,12 @@ pnpm build
 node --check extension/content.js
 node --check extension/background.js
 ```
+
+## Notes For AI Agents
+
+- Work in `/Users/vishruth/Projects/explain-this`, not the Codex scratch workspace.
+- Keep `extension/config.js` pointed at `http://127.0.0.1:5173` for local development.
+- Keep prompts in `prompts/explain.yaml`; do not inline prompt text into the extension.
+- Keep provider keys and model calls server-side. The extension must call the local backend through `extension/background.js`.
+- After changing `extension/content.js`, reload the unpacked extension and the target webpage.
+- Use `pnpm test` plus `node --check extension/content.js` and `node --check extension/background.js` before handing off.

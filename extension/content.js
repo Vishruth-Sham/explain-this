@@ -19,6 +19,7 @@
   shadow.append(style, surface);
 
   let selected = null;
+  let lastExplanation = "";
   let requestVersion = 0;
 
   document.addEventListener("mouseup", (event) => {
@@ -50,6 +51,7 @@
       rect: { left: rect.left, top: rect.top, bottom: rect.bottom, width: rect.width },
     };
     requestVersion += 1;
+    lastExplanation = "";
     renderPill();
   }
 
@@ -113,8 +115,13 @@
     if (!selected) return;
     const version = ++requestVersion;
     renderPopover({ loadingMode: contextMode, explanationMode });
+    const selectedText = selected.selected_text || window.getSelection()?.toString().trim().slice(0, 4_000) || "";
+    if (!selectedText) {
+      renderPopover({ error: "Select text again, then click explain this." });
+      return;
+    }
     const payload = {
-      selected_text: selected.selected_text,
+      selected_text: selectedText,
       before_text: selected.before_text,
       after_text: selected.after_text,
       nearby_text: selected.nearby_text,
@@ -128,34 +135,49 @@
 
     chrome.runtime.sendMessage({ type: "EXPLAIN_SELECTION", payload }, (response) => {
       if (!selected || version !== requestVersion) return;
-      if (chrome.runtime.lastError) return renderPopover({ error: "The local explanation service could not be reached." });
-      if (!response?.ok) return renderPopover({ error: response?.error || "Local model inference failed." });
+      if (chrome.runtime.lastError) {
+        return renderPopover({
+          explanation: lastExplanation,
+          error: "The local explanation service could not be reached.",
+          actions: followupActions(contextMode, explanationMode, false),
+        });
+      }
+      if (!response?.ok) {
+        return renderPopover({
+          explanation: lastExplanation,
+          error: response?.error || "Local model inference failed.",
+          actions: followupActions(contextMode, explanationMode, false),
+        });
+      }
 
       const insufficient = response.insufficient_context || response.explanation.trim().toLowerCase().startsWith(INSUFFICIENT.toLowerCase());
       if (insufficient && contextMode === "deep") {
         renderPopover({ explanation: `${INSUFFICIENT} Try selecting a larger section.` });
         return;
       }
-      const actions = [];
-      if (insufficient) {
-        actions.push({ label: "Try with more page context", contextMode: "deep", explanationMode });
-      } else {
-        if (contextMode === "quick") {
-          actions.push({ label: "Explain deeper", contextMode: "deep", explanationMode });
-        }
-        if (explanationMode === "normal") {
-          actions.push({
-            label: "Explain from first principles",
-            contextMode,
-            explanationMode: "first_principles",
-          });
-        }
-      }
+      lastExplanation = response.explanation;
       renderPopover({
         explanation: response.explanation,
-        actions,
+        actions: followupActions(contextMode, explanationMode, insufficient),
       });
     });
+  }
+
+  function followupActions(contextMode, explanationMode, insufficient) {
+    if (insufficient) return [{ label: "Try with more page context", contextMode: "deep", explanationMode }];
+
+    const actions = [];
+    if (contextMode === "quick") {
+      actions.push({ label: "Explain deeper", contextMode: "deep", explanationMode });
+    }
+    if (explanationMode === "normal") {
+      actions.push({
+        label: "Explain from first principles",
+        contextMode,
+        explanationMode: "first_principles",
+      });
+    }
+    return actions;
   }
 
   function renderPopover({
@@ -175,7 +197,8 @@
         : loadingMode === "deep" ? "Explaining with more page context..." : "Explaining locally...";
       body = `<p class="status">${loadingText}</p><div class="loading" aria-label="${loadingText}"><span></span><span></span><span></span></div>`;
     } else {
-      body = `<p class="${error ? "error" : ""}">${escapeHtml(error || explanation)}</p>`;
+      body = explanation ? `<p>${escapeHtml(explanation)}</p>` : "";
+      if (error) body += `<p class="error">${escapeHtml(error)}</p>`;
       if (actions.length) {
         body += `<div class="actions">${actions.map((action, index) =>
           `<button class="secondary" data-action-index="${index}" type="button">${escapeHtml(action.label)}</button>`
@@ -198,6 +221,7 @@
   function close() {
     requestVersion += 1;
     selected = null;
+    lastExplanation = "";
     surface.replaceChildren();
   }
 
@@ -214,7 +238,7 @@
       .pill{position:fixed;display:flex;align-items:center;gap:11px;min-width:206px;height:58px;padding:0 22px;transform:translateX(-50%);border:1px solid #555552;border-radius:999px;color:#fff;background:#2c2c2a;box-shadow:0 14px 32px rgba(0,0,0,.28);cursor:pointer;pointer-events:auto;font-size:17px;font-weight:650;letter-spacing:-.025em;animation:pill-in 150ms ease-out}
       .pill::after,.popover::after{content:"";position:absolute;left:50%;bottom:-8px;width:14px;height:14px;transform:translateX(-50%) rotate(45deg);border-right:1px solid #555552;border-bottom:1px solid #555552;background:#2c2c2a}.pill:hover,.pill:focus-visible{border-color:#71716c;background:#343432;outline:none}
       .orb{display:grid;flex:0 0 auto;width:32px;height:32px;place-items:center;border-radius:50%;background:#083568}.orb img{width:19px;height:19px}.orb.small{width:30px;height:30px}.orb.small img{width:17px;height:17px}
-      .popover{position:fixed;max-height:70vh;overflow:auto;padding:17px 19px 19px;border:1px solid #555552;border-radius:18px;color:#ecebe7;background:#2c2c2a;box-shadow:0 18px 46px rgba(0,0,0,.34);pointer-events:auto;animation:popover-in 180ms ease-out}.popover header{display:flex;align-items:center;gap:10px;color:#fff;font-size:16px}.popover strong{font-weight:700}
+      .popover{position:fixed;max-height:min(420px,calc(100vh - 32px));overflow:auto;scrollbar-width:thin;scrollbar-color:rgba(170,168,163,.34) transparent;padding:17px 19px 19px;border:1px solid #555552;border-radius:18px;color:#ecebe7;background:#2c2c2a;box-shadow:0 18px 46px rgba(0,0,0,.34);pointer-events:auto;animation:popover-in 180ms ease-out}.popover::-webkit-scrollbar{width:8px;height:8px}.popover::-webkit-scrollbar-track{background:transparent}.popover::-webkit-scrollbar-thumb{border:2px solid transparent;border-radius:999px;background:rgba(170,168,163,.32);background-clip:padding-box}.popover::-webkit-scrollbar-thumb:hover{background:rgba(211,209,203,.42);background-clip:padding-box}.popover header{display:flex;align-items:center;gap:10px;color:#fff;font-size:16px}.popover strong{font-weight:700}
       .close{display:grid;width:30px;height:30px;margin-left:auto;place-items:center;border:0;border-radius:8px;background:transparent;cursor:pointer}.close:hover,.close:focus-visible{background:#3a3a37;outline:none}.close img{width:17px;height:17px}.popover p{margin:14px 2px 0;color:#d3d1cb;font-size:15px;font-weight:400;line-height:1.58;letter-spacing:normal;white-space:pre-wrap}.popover p.error{color:#ffb8b1}.popover p.status{color:#aaa8a3;font-size:13px}
       .actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.secondary{padding:7px 10px;border:1px solid #555552;border-radius:9px;color:#9fc7ff;background:#252523;cursor:pointer;font-size:13px;font-weight:650}.secondary:hover,.secondary:focus-visible{border-color:#71716c;background:#343432;outline:none}
       .loading{display:grid;gap:8px;margin-top:12px}.loading span{height:8px;border-radius:999px;background:#42423f;animation:pulse 900ms ease-in-out infinite alternate}.loading span:nth-child(2){width:84%;animation-delay:100ms}.loading span:nth-child(3){width:62%;animation-delay:200ms}

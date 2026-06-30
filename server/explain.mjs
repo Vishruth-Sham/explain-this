@@ -39,7 +39,11 @@ export function validateExplainInput(payload) {
 
   const selectedText = boundedString(payload.selected_text ?? payload.selection, LIMITS.selected_text);
   if (!selectedText) {
-    throw new ExplainError("Selected text is required.", { status: 400, code: "selected_text_required" });
+    const keys = Object.keys(payload).sort().join(",") || "none";
+    throw new ExplainError(`Selected text is required. Received fields: ${keys}.`, {
+      status: 400,
+      code: "selected_text_required",
+    });
   }
 
   const legacyContext = boundedString(payload.context, LIMITS.nearby_text);

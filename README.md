@@ -147,7 +147,7 @@ node --check extension/background.js
 
 ## Notes For AI Agents
 
-- Work from the repo root, not from any temporary Codex scratch workspace.
+- Work from the repo root, not from a temporary scratch workspace.
 - Keep `extension/config.js` pointed at `http://127.0.0.1:5173` for local development.
 - Keep prompts in `prompts/explain.yaml`; do not inline prompt text into the extension.
 - Keep provider keys and model calls server-side. The extension must call the local backend through `extension/background.js`.

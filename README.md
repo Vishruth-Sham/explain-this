@@ -1,36 +1,41 @@
 # Explain This
 
-Local, context-first explanations for selected text. The Chrome extension extracts the selected passage and nearby page context and explains it using Chrome's built-in on-device AI (Gemini Nano). No server, no accounts, no network calls — page content never leaves the machine.
+Select text on any page and get it explained right where you're reading — by the AI model built into Chrome, running on your own machine.
 
-## How It Works
+No server. No account. Nothing you read is uploaded.
 
-```txt
-select text on a webpage
-  -> content script captures selected_text and page context
-  -> extension service worker prompts the on-device model directly
-  -> extension renders the answer in the same popover
-```
+## What it does
 
-Requires Chrome 138+. On first use, Chrome downloads the on-device model in the background (needs free disk space); the extension will report a clear error if the model isn't available yet.
+Highlight a sentence you don't follow. A small button appears next to it; click it and the explanation writes itself out in a panel, a few words at a time.
 
-## Setup
+It reads the paragraphs around your selection first, so words like *this* and *the above* resolve to the right thing. When that isn't enough context, **Explain deeper** takes in the whole article and tries again. If it still can't tell, it says so instead of guessing.
 
-1. Open `chrome://extensions`.
-2. Enable **Developer mode**.
-3. Choose **Load unpacked**.
-4. Select the repo's `extension` directory.
-5. Reload any already-open webpage before testing the extension.
+Drag the panel by its header to move it out of your way.
 
-Chrome content scripts do not refresh on existing tabs until the extension and page are reloaded.
+## Install
 
-## Usage
+Not on the Chrome Web Store yet, so load it from source:
 
-Select text on a webpage and click **explain this**. **Explain deeper** re-runs the same selection with the full article pulled in as context, capped at 20,000 characters.
+1. Download or clone this repository.
+2. Open `chrome://extensions`.
+3. Turn on **Developer mode**.
+4. Click **Load unpacked** and choose the `extension` folder.
+5. Reload any tabs you already had open.
 
-## Tests
+## Before you start
+
+You need Chrome 138 or newer, on Windows 10/11, macOS 13+, Linux, or ChromeOS.
+
+The first explanation triggers a one-time model download that takes a few minutes. Chrome keeps the model on the drive holding your profile and wants roughly 22 GB free to do it. Until it's ready, the panel tells you it's still downloading rather than sitting there spinning.
+
+## Privacy
+
+The model runs inside Chrome on your machine. The extension makes no network requests at all — what you select, and the page it came from, never leave your browser.
+
+## Development
+
+Plain JavaScript in `extension/`. No dependencies, no build step.
 
 ```bash
 node --test extension/*.test.mjs
-node --check extension/content.js
-node --check extension/background.js
 ```

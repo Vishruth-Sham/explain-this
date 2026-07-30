@@ -1,146 +1,43 @@
 # Explain This
 
-Local, context-first explanations for selected text. The Chrome extension extracts the selected passage and nearby page context, sends it to a local Vite API, and the API calls local Ollama models. Page content stays on the machine.
+Select text on any page and get it explained right where you're reading — by the AI model built into Chrome, running on your own machine.
 
-## How It Works
+No server. No account. Nothing you read is uploaded.
 
-```txt
-select text on a webpage
-  -> content script captures selected_text and page context
-  -> extension service worker POSTs to http://127.0.0.1:5173/api/explain
-  -> Vite middleware validates and builds the prompt from prompts/explain.yaml
-  -> Ollama runs the selected local model
-  -> extension renders the answer in the same popover
-```
+## What it does
 
-Normal explanations use `qwen2.5-coder:3b`. First-principles explanations use `qwen3:4b-thinking` and can take noticeably longer.
+Highlight a sentence you don't follow. A small button appears next to it; click it and the explanation writes itself out in a panel, a few words at a time.
 
-## Setup
+It reads the paragraphs around your selection first, so words like *this* and *the above* resolve to the right thing. When that isn't enough context, **Explain deeper** takes in the whole article and tries again. If it still can't tell, it says so instead of guessing.
 
-### 1. Install Ollama and models
+Drag the panel by its header to move it out of your way.
 
-```bash
-brew install ollama
-ollama pull qwen2.5-coder:3b
-ollama pull qwen3:4b-thinking
-ollama serve
-```
+## Install
 
-If Ollama already runs as a service, `ollama serve` may report that the port is already in use. That is fine as long as `curl http://localhost:11434/api/tags` returns model data.
+Not on the Chrome Web Store yet, so load it from source:
 
-### 2. Configure environment
+1. Download or clone this repository.
+2. Open `chrome://extensions`.
+3. Turn on **Developer mode**.
+4. Click **Load unpacked** and choose the `extension` folder.
+5. Reload any tabs you already had open.
 
-```bash
-cp .env.example .env
-```
+## Before you start
 
-```env
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=qwen2.5-coder:3b
-OLLAMA_TIMEOUT_SECONDS=20
-OLLAMA_FIRST_PRINCIPLES_MODEL=qwen3:4b-thinking
-OLLAMA_FIRST_PRINCIPLES_TIMEOUT_SECONDS=60
-```
+You need Chrome 138 or newer, on Windows 10/11, macOS 13+, Linux, or ChromeOS. Chrome also checks the machine can run a model at all: a graphics card with more than 4 GB of memory, or 16 GB of RAM and four CPU cores.
 
-The app is configured for local Ollama models. Page content is sent only to the local backend and local Ollama instance.
+The first explanation triggers a one-time download that takes a few minutes. Until it finishes, the panel says so rather than sitting there spinning.
 
-### 3. Install dependencies and run the backend
+Chrome won't start that download unless the drive holding your Chrome profile has **22 GB free**. That's headroom it insists on, not the size of the model — the model is far smaller, and `chrome://on-device-internals` will show you what's actually stored. Worth knowing: if your free space later falls below 10 GB, Chrome deletes the model and fetches it again once there's room.
+
+## Privacy
+
+The model runs inside Chrome on your machine. The extension makes no network requests at all — what you select, and the page it came from, never leave your browser.
+
+## Development
+
+Plain JavaScript in `extension/`. No dependencies, no build step.
 
 ```bash
-pnpm install
-pnpm dev
-```
-
-The local backend runs at `http://127.0.0.1:5173` and exposes:
-
-- `GET /health`
-- `POST /explain`
-- `POST /api/explain` for backwards compatibility
-
-### 4. Load the Chrome extension
-
-1. Open `chrome://extensions`.
-2. Enable **Developer mode**.
-3. Choose **Load unpacked**.
-4. Select the repo's `extension` directory.
-5. Reload any already-open webpage before testing the extension.
-
-Chrome content scripts do not refresh on existing tabs until the extension and page are reloaded.
-
-## API Contract
-
-The extension sends this shape to `/api/explain`:
-
-```json
-{
-  "selected_text": "A Service gives Pods a stable address.",
-  "before_text": "Pods can be recreated and receive new IP addresses.",
-  "after_text": "Clients use the Service instead of tracking each Pod directly.",
-  "nearby_text": "Before, selected, and after text combined.",
-  "section_heading": "Services",
-  "page_title": "Kubernetes Services",
-  "page_url": "https://example.com/services",
-  "context_mode": "quick",
-  "explanation_mode": "normal"
-}
-```
-
-`context_mode` can be `quick` or `deep`. Deep mode also sends `main_content`, capped server-side at 20,000 characters.
-
-`explanation_mode` can be `normal` or `first_principles`.
-
-## Manual Checks
-
-```bash
-curl http://127.0.0.1:5173/health
-```
-
-Expected:
-
-```json
-{
-  "status": "ok",
-  "ollama_base_url": "http://localhost:11434",
-  "model": "qwen2.5-coder:3b",
-  "first_principles_model": "qwen3:4b-thinking"
-}
-```
-
-Normal explanation:
-
-```bash
-curl -X POST http://127.0.0.1:5173/explain \
-  -H "Content-Type: application/json" \
-  -d '{
-    "selected_text": "The function memoizes recursive calls to avoid recomputing overlapping subproblems.",
-    "before_text": "Dynamic programming can be implemented using recursion and caching.",
-    "after_text": "This reduces the time complexity because each state is computed once.",
-    "section_heading": "Memoization",
-    "page_title": "Dynamic Programming Guide",
-    "page_url": "https://example.com/dp-guide",
-    "context_mode": "quick"
-  }'
-```
-
-First-principles explanation:
-
-```bash
-curl -X POST http://127.0.0.1:5173/explain \
-  -H "Content-Type: application/json" \
-  -d '{
-    "selected_text": "A Service gives Pods a stable address.",
-    "before_text": "Pods can be recreated and receive new IP addresses.",
-    "after_text": "Clients use the Service instead of tracking each Pod directly.",
-    "context_mode": "quick",
-    "explanation_mode": "first_principles"
-  }'
-```
-
-## Tests
-
-```bash
-pnpm test
-pnpm build
-node --check extension/content.js
-node --check extension/background.js
+node --test extension/*.test.mjs
 ```

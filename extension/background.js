@@ -1,28 +1,77 @@
-import { API_BASE_URL } from "./config.js";
+import { validateExplainInput, buildMessages, isInsufficientContext } from "./promptLogic.js";
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type !== "EXPLAIN_SELECTION") return false;
+async function ensureModelReady() {
+  if (typeof LanguageModel === "undefined") {
+    throw new Error("On-device AI isn't available in this browser. Update Chrome to 138+ and try again.");
+  }
 
-  fetch(`${API_BASE_URL}/api/explain`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(message.payload),
-  })
-    .then(async (response) => {
-      const result = await response.json().catch(() => null);
-      if (!response.ok || !result?.explanation) {
-        const message = typeof result?.error === "string" ? result.error : result?.error?.message;
-        throw new Error(message || "Local model inference failed.");
-      }
-      sendResponse({
-        ok: true,
-        explanation: result.explanation,
-        insufficient_context: result.insufficient_context,
-        context_mode: result.context_mode,
-        explanation_mode: result.explanation_mode,
-      });
+  const availability = await LanguageModel.availability();
+  console.info("[explain-this] LanguageModel.availability():", availability);
+
+  if (availability === "unavailable") {
+    throw new Error(
+      "On-device AI isn't available on this device (needs ~22GB free disk, a supported GPU/CPU, and an unmetered connection).",
+    );
+  }
+
+  if (availability !== "available") {
+    LanguageModel.create({
+      monitor(monitor) {
+        monitor.addEventListener("downloadprogress", (event) => {
+          console.info(`[explain-this] on-device model download: ${Math.round(event.loaded * 100)}%`);
+        });
+      },
     })
-    .catch((error) => sendResponse({ ok: false, error: error.message }));
+      .then((session) => session.destroy())
+      .catch((error) => console.error("[explain-this] model download failed:", error));
+    throw new Error("Downloading the on-device model (first run only). This takes a few minutes — try again shortly.");
+  }
+}
 
-  return true;
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== "explain") return;
+
+  let cancelled = false;
+  port.onDisconnect.addListener(() => { cancelled = true; });
+
+  port.onMessage.addListener(async (message) => {
+    if (message?.type !== "EXPLAIN_SELECTION") return;
+
+    let session;
+    try {
+      const input = validateExplainInput(message.payload);
+      const { systemPrompt, userPrompt } = buildMessages(input);
+      await ensureModelReady();
+
+      session = await LanguageModel.create({
+        initialPrompts: [{ role: "system", content: systemPrompt }],
+      });
+
+      const reader = session.promptStreaming(userPrompt).getReader();
+      let explanation = "";
+
+      while (!cancelled) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        explanation += value;
+        port.postMessage({ type: "CHUNK", text: explanation });
+      }
+      if (cancelled) return;
+
+      explanation = explanation.trim();
+      if (!explanation) throw new Error("The on-device model returned an empty response.");
+
+      port.postMessage({
+        type: "DONE",
+        explanation,
+        context_mode: input.context_mode,
+        insufficient_context: isInsufficientContext(explanation),
+      });
+    } catch (error) {
+      console.error("[explain-this]", error);
+      if (!cancelled) port.postMessage({ type: "ERROR", error: error.message });
+    } finally {
+      session?.destroy();
+    }
+  });
 });

@@ -10,7 +10,7 @@ async function ensureModelReady() {
 
   if (availability === "unavailable") {
     throw new Error(
-      "On-device AI isn't available on this device (needs ~22GB free disk, a supported GPU/CPU, and an unmetered connection).",
+      "Chrome can't run its on-device model here. It needs 22 GB free on your Chrome profile's drive, plus 4 GB of graphics memory or 16 GB of RAM.",
     );
   }
 

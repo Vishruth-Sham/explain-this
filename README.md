@@ -24,9 +24,11 @@ Not on the Chrome Web Store yet, so load it from source:
 
 ## Before you start
 
-You need Chrome 138 or newer, on Windows 10/11, macOS 13+, Linux, or ChromeOS.
+You need Chrome 138 or newer, on Windows 10/11, macOS 13+, Linux, or ChromeOS. Chrome also checks the machine can run a model at all: a graphics card with more than 4 GB of memory, or 16 GB of RAM and four CPU cores.
 
-The first explanation triggers a one-time model download that takes a few minutes. Chrome keeps the model on the drive holding your profile and wants roughly 22 GB free to do it. Until it's ready, the panel tells you it's still downloading rather than sitting there spinning.
+The first explanation triggers a one-time download that takes a few minutes. Until it finishes, the panel says so rather than sitting there spinning.
+
+Chrome won't start that download unless the drive holding your Chrome profile has **22 GB free**. That's headroom it insists on, not the size of the model — the model is far smaller, and `chrome://on-device-internals` will show you what's actually stored. Worth knowing: if your free space later falls below 10 GB, Chrome deletes the model and fetches it again once there's room.
 
 ## Privacy
 

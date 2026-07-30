@@ -23,6 +23,7 @@
   let requestVersion = 0;
   let activePort = null;
   let streamEl = null;
+  let popoverPos = null;
 
   document.addEventListener("mouseup", (event) => {
     if (event.composedPath().includes(host)) return;
@@ -54,6 +55,7 @@
     };
     requestVersion += 1;
     lastExplanation = "";
+    popoverPos = null;
     renderPill();
   }
 
@@ -194,8 +196,7 @@
     actions = [],
   }) {
     const width = Math.min(384, innerWidth - 32);
-    const left = clamp(selected.rect.left + selected.rect.width / 2 - width / 2, 16, innerWidth - width - 16);
-    const top = selected.rect.top > 300 ? Math.max(16, selected.rect.top - 280) : selected.rect.bottom + 16;
+    const reused = Boolean(surface.querySelector(".popover"));
     let body;
 
     if (loadingMode) {
@@ -214,10 +215,15 @@
       }
     }
 
-    surface.innerHTML = `<section class="popover" style="left:${left}px;top:${top}px;width:${width}px" aria-live="polite">
+    surface.innerHTML = `<section class="popover" style="width:${width}px" aria-live="polite">
       <header><span class="orb small"></span>
       <strong>Explanation</strong><button class="close" type="button" aria-label="Close explanation"><img src="${chrome.runtime.getURL("assets/x.svg")}" alt=""></button></header>
       ${body}</section>`;
+
+    const popover = surface.querySelector(".popover");
+    if (reused) popover.style.animation = "none";
+    placePopover(popover);
+    enableDrag(popover);
 
     streamEl = streaming ? surface.querySelector(".body") : null;
     surface.querySelector(".close").addEventListener("click", close);
@@ -228,11 +234,69 @@
     });
   }
 
+  // Positions against the measured height so the popover is never pushed below
+  // the fold — it is position:fixed, so anything off-screen is unreachable.
+  function placePopover(popover) {
+    const { offsetWidth: width, offsetHeight: height } = popover;
+    const gap = 12;
+    const margin = 12;
+
+    if (popoverPos) {
+      popover.style.left = `${clamp(popoverPos.left, margin, Math.max(margin, innerWidth - width - margin))}px`;
+      popover.style.top = `${clamp(popoverPos.top, margin, Math.max(margin, innerHeight - height - margin))}px`;
+      return;
+    }
+
+    const below = selected.rect.bottom + gap;
+    const above = selected.rect.top - height - gap;
+    let top;
+    if (below + height <= innerHeight - margin) top = below;
+    else if (above >= margin) top = above;
+    else top = Math.max(margin, innerHeight - height - margin);
+
+    popover.style.left = `${clamp(selected.rect.left + selected.rect.width / 2 - width / 2, margin, Math.max(margin, innerWidth - width - margin))}px`;
+    popover.style.top = `${top}px`;
+  }
+
+  function enableDrag(popover) {
+    const header = popover.querySelector("header");
+    header.addEventListener("pointerdown", (event) => {
+      if (event.target.closest(".close") || event.button !== 0) return;
+      event.preventDefault();
+
+      const rect = popover.getBoundingClientRect();
+      const offsetX = event.clientX - rect.left;
+      const offsetY = event.clientY - rect.top;
+      popover.style.animation = "none";
+      popover.classList.add("is-dragging");
+      header.setPointerCapture(event.pointerId);
+
+      const onMove = (move) => {
+        const left = clamp(move.clientX - offsetX, 8, Math.max(8, innerWidth - popover.offsetWidth - 8));
+        const top = clamp(move.clientY - offsetY, 8, Math.max(8, innerHeight - popover.offsetHeight - 8));
+        popover.style.left = `${left}px`;
+        popover.style.top = `${top}px`;
+        popoverPos = { left, top };
+      };
+      const onUp = () => {
+        header.removeEventListener("pointermove", onMove);
+        header.removeEventListener("pointerup", onUp);
+        header.removeEventListener("pointercancel", onUp);
+        popover.classList.remove("is-dragging");
+      };
+
+      header.addEventListener("pointermove", onMove);
+      header.addEventListener("pointerup", onUp);
+      header.addEventListener("pointercancel", onUp);
+    });
+  }
+
   function close() {
     requestVersion += 1;
     activePort?.disconnect();
     activePort = null;
     streamEl = null;
+    popoverPos = null;
     selected = null;
     lastExplanation = "";
     surface.replaceChildren();
@@ -284,7 +348,10 @@
       .popover::-webkit-scrollbar-track{background:transparent}
       .popover::-webkit-scrollbar-thumb{border:2px solid transparent;border-radius:999px;background:rgba(255,255,255,.16);background-clip:padding-box}
       .popover::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.28);background-clip:padding-box}
-      .popover header{display:flex;align-items:center;gap:9px;font-size:12px;letter-spacing:.04em;text-transform:uppercase}
+      .popover header{display:flex;align-items:center;gap:9px;font-size:12px;letter-spacing:.04em;text-transform:uppercase;
+        cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+      .popover.is-dragging{box-shadow:0 32px 72px -16px rgba(0,0,0,.82),inset 0 1px 0 rgba(255,255,255,.16)}
+      .popover.is-dragging header{cursor:grabbing}
       .popover strong{font-weight:600;color:var(--fg-mute)}
 
       .close{display:grid;width:26px;height:26px;margin-left:auto;place-items:center;border:0;border-radius:7px;

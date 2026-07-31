@@ -14,7 +14,9 @@ Drag the panel by its header to move it out of your way.
 
 ## Install
 
-Not on the Chrome Web Store yet, so load it from source:
+[Install Explain This from the Chrome Web Store](https://chromewebstore.google.com/detail/explain-this/alfhleejllgfalccldadlfpkppengman).
+
+To load it from source for development:
 
 1. Download or clone this repository.
 2. Open `chrome://extensions`.

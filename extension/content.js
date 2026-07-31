@@ -48,6 +48,11 @@
 
     const selectedText = selection?.toString().trim().slice(0, 4_000) || "";
     if (!selection?.rangeCount || !selectedText) return;
+    // Every mouseup schedules this, including the one from clicking "explain this" or "Explain
+    // deeper" — those don't change the page selection at all. Only act on a genuine change, or a
+    // click's own mouseup ends up re-capturing the same text a moment later and clobbers the
+    // loading popover it just triggered.
+    if (selectedText === selected?.selected_text) return;
 
     const range = selection.getRangeAt(0);
     const rect = range.getBoundingClientRect();

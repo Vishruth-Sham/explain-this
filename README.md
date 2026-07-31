@@ -1,9 +1,9 @@
 <!-- Hallmark · pre-emit critique: P5 H5 E4 S5 R5 V4 -->
 <!-- Hallmark · genre: editorial · macrostructure: Long Document · theme: Studio · enrichment: existing brand assets · platform: GitHub Markdown -->
 
-<img align="right" src="./extension/assets/icon-128.png" width="112" height="112" alt="Explain This extension icon">
-
 # Explain This
+
+<img align="right" src="./extension/assets/icon-128.png" width="112" height="112" alt="Explain This extension icon">
 
 **Select text. Understand it.**
 

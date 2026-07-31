@@ -25,8 +25,7 @@
   let streamEl = null;
   let popoverPos = null;
 
-  document.addEventListener("mouseup", (event) => {
-    if (event.composedPath().includes(host)) return;
+  document.addEventListener("mouseup", () => {
     setTimeout(captureSelection, 0);
   }, true);
   document.addEventListener("pointerdown", (event) => {
@@ -42,6 +41,11 @@
 
   function captureSelection() {
     const selection = window.getSelection();
+    // A drag can end (mouseup) with the cursor resting on our own popover — that's about where the
+    // mouse happened to be released, not about what got selected. Key off the selection's real
+    // location instead: if it's inside our UI (e.g. copying the explanation text), leave it alone.
+    if (selection?.anchorNode && host.contains(selection.anchorNode)) return;
+
     const selectedText = selection?.toString().trim().slice(0, 4_000) || "";
     if (!selection?.rangeCount || !selectedText) return;
 

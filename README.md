@@ -1,45 +1,75 @@
+<!-- Hallmark · pre-emit critique: P5 H5 E4 S5 R5 V4 -->
+<!-- Hallmark · genre: editorial · macrostructure: Long Document · theme: Studio · enrichment: existing brand assets · platform: GitHub Markdown -->
+
+<img align="right" src="./extension/assets/icon-128.png" width="112" height="112" alt="Explain This extension icon">
+
 # Explain This
 
-Select text on any page and get it explained right where you're reading — by the AI model built into Chrome, running on your own machine.
+**Select text. Understand it.**
 
+Context-aware explanations from the AI model built into Chrome.<br>
 No server. No account. Nothing you read is uploaded.
 
-## What it does
+<a href="https://chromewebstore.google.com/detail/explain-this/alfhleejllgfalccldadlfpkppengman">
+  <img src="https://img.shields.io/badge/Install-Chrome_Web_Store-4285F4?style=for-the-badge&amp;logo=googlechrome&amp;logoColor=white" alt="Install Explain This from the Chrome Web Store">
+</a>
 
-Highlight a sentence you don't follow. A small button appears next to it; click it and the explanation writes itself out in a panel, a few words at a time.
+<br clear="right">
 
-It reads the paragraphs around your selection first, so words like *this* and *the above* resolve to the right thing. When that isn't enough context, **Explain deeper** takes in the whole article and tries again. If it still can't tell, it says so instead of guessing.
+---
 
-Drag the panel by its header to move it out of your way.
+## Read without leaving the page
+
+Explain This turns a difficult sentence into a clear explanation right where you found it. Highlight a passage, click the small button beside it, and the answer streams into a movable panel over the page.
+
+1. **Select** a sentence, term, error message, or piece of code.
+2. **Explain** it using the nearby paragraphs, section heading, and page context.
+3. **Go deeper** when the local context is not enough; the extension can read the main article and try again.
+
+The extension keeps the exact selection separate from its context, so it explains what you highlighted instead of drifting into the page title or section heading.
 
 ## Install
 
-[Install Explain This from the Chrome Web Store](https://chromewebstore.google.com/detail/explain-this/alfhleejllgfalccldadlfpkppengman).
+[Install Explain This from the Chrome Web Store](https://chromewebstore.google.com/detail/explain-this/alfhleejllgfalccldadlfpkppengman). After installation, select text on any regular webpage to begin.
 
-To load it from source for development:
+## Before first use
 
-1. Download or clone this repository.
-2. Open `chrome://extensions`.
-3. Turn on **Developer mode**.
-4. Click **Load unpacked** and choose the `extension` folder.
-5. Reload any tabs you already had open.
+Explain This uses Chrome’s built-in on-device language model. The first explanation may trigger a one-time model download; while it downloads, the panel tells you to try again shortly.
 
-## Before you start
+| Requirement | Minimum |
+| --- | --- |
+| Chrome | Version 138 or newer |
+| Operating system | Windows 10/11, macOS 13+, Linux, or ChromeOS |
+| Hardware | More than 4 GB of graphics memory, or 16 GB of RAM and four CPU cores |
+| Free space | 22 GB on the drive containing the Chrome profile |
 
-You need Chrome 138 or newer, on Windows 10/11, macOS 13+, Linux, or ChromeOS. Chrome also checks the machine can run a model at all: a graphics card with more than 4 GB of memory, or 16 GB of RAM and four CPU cores.
+The disk requirement is Chrome’s download headroom, not the model’s final size. If available space later falls below 10 GB, Chrome may remove the model and download it again when enough room is available. Model status is visible at `chrome://on-device-internals`.
 
-The first explanation triggers a one-time download that takes a few minutes. Until it finishes, the panel says so rather than sitting there spinning.
+## Private by construction
 
-Chrome won't start that download unless the drive holding your Chrome profile has **22 GB free**. That's headroom it insists on, not the size of the model — the model is far smaller, and `chrome://on-device-internals` will show you what's actually stored. Worth knowing: if your free space later falls below 10 GB, Chrome deletes the model and fetches it again once there's room.
+Selected text and page context are passed directly to Chrome’s on-device model and held only for the current explanation.
 
-## Privacy
+- The extension makes no network requests.
+- It has no server, account system, analytics, telemetry, advertising, or error reporting.
+- It does not write selections or explanations to disk.
+- Nothing is shared with the developer or a third party.
 
-The model runs inside Chrome on your machine. The extension makes no network requests at all — what you select, and the page it came from, never leave your browser.
+[Read the complete privacy policy](./PRIVACY.md).
 
 ## Development
 
-Plain JavaScript in `extension/`. No dependencies, no build step.
+The extension is plain JavaScript: no runtime dependencies, no build step, and no remotely loaded code.
 
-```bash
-node --test extension/*.test.mjs
+```sh
+npm test
 ```
+
+| Path | Purpose |
+| --- | --- |
+| `extension/content.js` | Selection capture, context extraction, and in-page interface |
+| `extension/background.js` | On-device model session and streamed explanations |
+| `extension/promptLogic.js` | Input validation and prompt construction |
+| `extension/prompts.js` | Quick and deep explanation prompts |
+| `package.sh` | Chrome Web Store package assembly |
+
+Run `./package.sh` to rebuild the store ZIP from the current extension source.

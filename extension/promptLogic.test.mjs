@@ -68,6 +68,16 @@ test("extension supports deep and insufficient-context actions", () => {
   assert.match(background, /insufficient_context/);
 });
 
+test("captureSelection only reacts to a real selection change", () => {
+  // Every mouseup schedules a capture, including the one from clicking "explain this" itself —
+  // that click doesn't change the page selection. Without this guard, the click's own mouseup
+  // re-captures the unchanged selection a moment later and clobbers the popover it just opened.
+  assert.match(content, /selectedText === selected\?\.selected_text/);
+  // The mouseup listener must not gate on where the mouse was released (event.composedPath) —
+  // a drag onto new text can easily end with the release point back over our own popover.
+  assert.doesNotMatch(content, /mouseup["'],?\s*\(event\)\s*=>\s*\{\s*if\s*\(event\.composedPath/);
+});
+
 test("extension streams tokens over a long-lived port", () => {
   assert.match(content, /chrome\.runtime\.connect/);
   assert.match(content, /"CHUNK"/);

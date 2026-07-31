@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 280" width="440" height="280">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.5" y2="1">
+      <stop offset="0" stop-color="#23264f"/>
+      <stop offset="1" stop-color="#0e0f1b"/>
+    </linearGradient>
+    <linearGradient id="hl" x1="0" y1="0" x2="1" y2="0.6">
+      <stop offset="0" stop-color="#7db1ff"/>
+      <stop offset="1" stop-color="#b18cff"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="440" height="280" fill="url(#bg)"/>
+
+  <!-- the mark: lines of text, one highlighted -->
+  <g transform="translate(48,104)">
+    <rect x="0" y="0" width="126" height="15" rx="7.5" fill="#fff" opacity=".26"/>
+    <rect x="0" y="30" width="88" height="18" rx="9" fill="url(#hl)"/>
+    <rect x="0" y="63" width="126" height="15" rx="7.5" fill="#fff" opacity=".26"/>
+  </g>
+
+  <text x="210" y="130" fill="#f5f5f7"
+        font-family="ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif"
+        font-size="34" font-weight="600" letter-spacing="-0.8">Explain This</text>
+  <text x="210" y="160" fill="#9a9aa6"
+        font-family="ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif"
+        font-size="15.5" font-weight="400">Select text. Understand it.</text>
+  <text x="210" y="184" fill="#7db1ff"
+        font-family="ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif"
+        font-size="13" font-weight="500">Runs on your machine</text>
+</svg>

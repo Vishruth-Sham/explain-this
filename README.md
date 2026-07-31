@@ -16,8 +16,6 @@ No server. No account. Nothing you read is uploaded.
 
 <br clear="right">
 
----
-
 ## Read without leaving the page
 
 Explain This turns a difficult sentence into a clear explanation right where you found it. Highlight a passage, click the small button beside it, and the answer streams into a movable panel over the page.
@@ -27,10 +25,6 @@ Explain This turns a difficult sentence into a clear explanation right where you
 3. **Go deeper** when the local context is not enough; the extension can read the main article and try again.
 
 The extension keeps the exact selection separate from its context, so it explains what you highlighted instead of drifting into the page title or section heading.
-
-## Install
-
-[Install Explain This from the Chrome Web Store](https://chromewebstore.google.com/detail/explain-this/alfhleejllgfalccldadlfpkppengman). After installation, select text on any regular webpage to begin.
 
 ## Before first use
 

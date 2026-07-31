@@ -16,8 +16,6 @@ No server. No account. Nothing you read is uploaded.
 
 <br clear="right">
 
----
-
 ## Read without leaving the page
 
 Explain This turns a difficult sentence into a clear explanation right where you found it. Highlight a passage, click the small button beside it, and the answer streams into a movable panel over the page.
@@ -28,13 +26,9 @@ Explain This turns a difficult sentence into a clear explanation right where you
 
 The extension keeps the exact selection separate from its context, so it explains what you highlighted instead of drifting into the page title or section heading.
 
-## Install
-
-[Install Explain This from the Chrome Web Store](https://chromewebstore.google.com/detail/explain-this/alfhleejllgfalccldadlfpkppengman). After installation, select text on any regular webpage to begin.
-
 ## Before first use
 
-Explain This uses Chrome’s built-in on-device language model. The first explanation may trigger a one-time model download; while it downloads, the panel tells you to try again shortly.
+Explain This uses **Gemini Nano** through Chrome’s built-in Prompt API. The model runs on-device and is downloaded and managed by Chrome. Your first explanation may trigger that one-time download; while it completes, the panel tells you to try again shortly.
 
 | Requirement | Minimum |
 | --- | --- |

@@ -16,14 +16,6 @@ Drag the panel by its header to move it out of your way.
 
 [Install Explain This from the Chrome Web Store](https://chromewebstore.google.com/detail/explain-this/alfhleejllgfalccldadlfpkppengman).
 
-To load it from source for development:
-
-1. Download or clone this repository.
-2. Open `chrome://extensions`.
-3. Turn on **Developer mode**.
-4. Click **Load unpacked** and choose the `extension` folder.
-5. Reload any tabs you already had open.
-
 ## Before you start
 
 You need Chrome 138 or newer, on Windows 10/11, macOS 13+, Linux, or ChromeOS. Chrome also checks the machine can run a model at all: a graphics card with more than 4 GB of memory, or 16 GB of RAM and four CPU cores.

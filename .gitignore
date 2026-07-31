@@ -14,3 +14,7 @@ qa/
 qa-*.html
 *-state.png
 design-qa.md
+
+# Web Store upload package
+explain-this-*.zip
+.package/

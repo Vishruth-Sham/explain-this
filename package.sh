@@ -1,14 +1,34 @@
 #!/usr/bin/env bash
-# Builds the Chrome Web Store upload zip from extension/.
-# Ships only what the extension loads at runtime — no tests, no docs, no icon source.
+# Assembles everything the Chrome Web Store upload needs into store/.
+#
+#   store/explain-this-<version>.zip   the extension itself
+#   store/icon-128.png                 listing icon
+#   store/promo-440x280.png            small promo tile
+#
+# store/ is gitignored — it is all generated from tracked sources.
+# Put listing screenshots in store/screenshots/ and they will be left alone.
 set -euo pipefail
 
-VERSION=$(node -p "require('./extension/manifest.json').version")
-OUT="explain-this-${VERSION}.zip"
+cd "$(dirname "$0")"
 
-rm -rf .package "$OUT"
-rsync -a --exclude='README.md' --exclude='*.test.mjs' --exclude='icon.svg' --exclude='promo-*' extension/ .package/
+VERSION=$(node -p "require('./extension/manifest.json').version")
+OUT="store/explain-this-${VERSION}.zip"
+
+mkdir -p store
+rm -rf .package store/explain-this-*.zip
+
+# Ship only what the extension loads at runtime — no tests, no docs, no source art.
+rsync -a \
+  --exclude='README.md' \
+  --exclude='*.test.mjs' \
+  --exclude='icon.svg' \
+  --exclude='promo-*' \
+  extension/ .package/
 (cd .package && zip -qr "../$OUT" . -x '.*')
 rm -rf .package
 
-echo "$OUT"
+cp extension/assets/icon-128.png store/icon-128.png
+sips -s format png extension/assets/promo-440x280.svg --out store/promo-440x280.png >/dev/null
+
+echo "store/"
+ls -1 store

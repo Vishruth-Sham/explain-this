@@ -28,7 +28,7 @@ The extension keeps the exact selection separate from its context, so it explain
 
 ## Before first use
 
-Explain This uses Chrome’s built-in on-device language model. The first explanation may trigger a one-time model download; while it downloads, the panel tells you to try again shortly.
+Explain This uses **Gemini Nano** through Chrome’s built-in Prompt API. The model runs on-device and is downloaded and managed by Chrome. Your first explanation may trigger that one-time download; while it completes, the panel tells you to try again shortly.
 
 | Requirement | Minimum |
 | --- | --- |

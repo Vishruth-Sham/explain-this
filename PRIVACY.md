@@ -16,15 +16,15 @@ When you select text and ask for an explanation, the extension reads:
 
 ## What happens to it
 
-It is passed to the AI model built into Chrome, which runs on your own computer, and is used only to produce the explanation you asked for. It is held in memory for the length of that one request and then discarded.
+It is passed to the AI model built into Chrome, which runs on your own computer, and is used only to produce the explanation you asked for. It is held in memory until you close the explanation or select something new, then discarded.
 
 The extension makes no network requests. There is no server behind it, no account to create, and no analytics, telemetry, error reporting, or advertising of any kind. Nothing is written to disk. Nothing is shared with the developer or with any third party, because nothing ever leaves your browser.
 
 ## Permissions
 
-The extension requests no Chrome permissions.
+The extension does not request any of Chrome's runtime permissions, like storage or tabs.
 
-It does run on any page you visit, which it needs in order to notice text you have selected. That access is used for nothing else.
+It does declare a content script that runs on every page you visit, which Chrome treats as access to that page. It needs this to notice text you have selected. That access is used for nothing else.
 
 ## The model
 

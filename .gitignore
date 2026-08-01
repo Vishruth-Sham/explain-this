@@ -8,6 +8,7 @@ dist/
 # Local agent/prototype notes
 AGENTS.md
 **/AGENTS.md
+.hallmark/
 
 # Visual QA and prototype captures
 qa/
